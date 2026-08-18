@@ -1,0 +1,4 @@
+docling==2.120.3
+sentence-transformers
+sqlalchemy==2.0.50
+pgvector==0.5.0
