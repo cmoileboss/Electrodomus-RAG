@@ -1,4 +1,4 @@
 docling==2.120.3
-sentence-transformers
+sentence-transformers==5.7.0
 sqlalchemy==2.0.50
 pgvector==0.5.0
