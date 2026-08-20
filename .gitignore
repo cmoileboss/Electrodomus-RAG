@@ -1,3 +1,5 @@
 Documentation_Electrodomus
 .env
 *.log
+__pycache__
+*.pyc
