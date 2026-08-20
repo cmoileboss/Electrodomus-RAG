@@ -90,6 +90,7 @@ class DocManager:
 
         db_chunks = []
         for i, (chunk, embedding_text, embedding) in enumerate(zip(chunks, embedding_texts, embeddings)):
+            print(chunk)
             content = self._clean_chunk(chunk.text)
             section = chunk.meta.headings[0] if chunk.meta.headings else None
             page = None

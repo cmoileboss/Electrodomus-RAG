@@ -12,9 +12,9 @@ logger = get_logger(__name__)
 
 load_dotenv()
 
-EMBED_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
+EMBED_MODEL_ID = os.getenv("EMBED_MODEL_ID", "BAAI/bge-m3")
 HF_TOKEN = os.getenv("HF_TOKEN")
-MAX_TOKENS = 400
+MAX_TOKENS = int(os.getenv("MAX_TOKENS", 400))
 DOC_FOLDER = Path("Documentation_Electrodomus")
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".html"}
 
