@@ -3,3 +3,4 @@ Documentation_Electrodomus
 *.log
 __pycache__
 *.pyc
+front/node_modules
