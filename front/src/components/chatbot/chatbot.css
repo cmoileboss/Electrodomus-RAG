@@ -1,0 +1,113 @@
+.chat {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    padding: 20px;
+    gap: 10px;
+    box-sizing: border-box;
+}
+
+.messages-container {
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    background-color: #f9f9f9;
+    min-height: 0; /* Important pour flex container */
+}
+
+/* Styling de la scrollbar */
+.messages-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.messages-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.messages-container::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+}
+
+.messages-container::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+.message {
+    padding: 10px 15px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    max-width: 70%;
+    overflow-wrap: break-word;
+    word-break: break-all;
+}
+
+.message.user {
+    background-color: #007bff;
+    color: white;
+    margin-left: auto;
+    text-align: right;
+}
+
+.message.assistant {
+    background-color: #e9ecef;
+    color: #333;
+}
+
+.input-container {
+    display: flex;
+    gap: 10px;
+}
+
+.prompt-input {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 16px;
+}
+
+.prompt-input:focus {
+    outline: none;
+    border-color: #007bff;
+}
+
+.send-button {
+    padding: 12px 24px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s;
+}
+
+.send-button:hover {
+    background-color: #0056b3;
+}
+
+.send-button:active {
+    background-color: #004085;
+}
+
+.send-button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+
+.no-messages {
+    text-align: center;
+    color: #888;
+    margin-top: 40px;
+}
+
+.loading-indicator {
+    opacity: 0.5;
+    font-style: italic;
+}

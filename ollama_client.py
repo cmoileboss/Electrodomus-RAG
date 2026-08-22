@@ -1,16 +1,15 @@
-import requests
 import json
-from sentence_transformers import SentenceTransformer
+import os
 
-from database.chunk_repository import ChunkRepository
-from database.database import get_session
+import httpx
+import requests
+
 from logger import get_logger
 
 logger = get_logger(__name__)
 
-OLLAMA_URL = "http://localhost:11434/api/chat"
-MODEL = "llama3.2:latest"
-EMBED_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
+MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:latest")
 
 SYSTEM_PROMPT = """\
 Tu es un assistant technique expert pour la marque Electrodomus, spécialisé dans le dépannage,
@@ -55,6 +54,22 @@ def chat(messages: list[dict], stream: bool = True) -> str:
         full_response = data["message"]["content"]
 
     return full_response
+
+
+async def stream_chat(messages: list[dict]):
+    """Async generator yielding tokens from Ollama as they arrive."""
+    payload = {"model": MODEL, "messages": messages, "stream": True}
+    async with httpx.AsyncClient(timeout=None) as client:
+        async with client.stream("POST", OLLAMA_URL, json=payload) as response:
+            async for line in response.aiter_lines():
+                if not line:
+                    continue
+                chunk = json.loads(line)
+                token = chunk.get("message", {}).get("content", "")
+                if token:
+                    yield token
+                if chunk.get("done"):
+                    break
 
 
 def build_rag_message(user_input: str, chunks: list) -> str:

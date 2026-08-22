@@ -1,5 +1,6 @@
 import argparse
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -20,7 +21,6 @@ SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".html"}
 
 
 def build_doc_manager() -> DocManager:
-    logger.info(f"Initialisation du DocManager avec le modèle d'embedding : {EMBED_MODEL_ID}")
     return DocManager(
         embed_model_id=EMBED_MODEL_ID,
         hf_token=HF_TOKEN,
@@ -34,13 +34,29 @@ def process_single(filepath: str):
         doc_manager.process_document(doc_source=filepath, session=session)
 
 
+def _process_file(filepath: str, doc_manager: DocManager):
+    """Traite un fichier dans son propre thread avec sa propre session."""
+    with get_session() as session:
+        doc_manager.process_document(doc_source=filepath, session=session)
+
+
 def process_all():
     doc_manager = build_doc_manager()
-    with get_session() as session:
-        for fichier in DOC_FOLDER.rglob("*"):
-            if fichier.is_file() and fichier.suffix in SUPPORTED_EXTENSIONS:
-                logger.info(f"Traitement du fichier : {fichier}")
-                doc_manager.process_document(doc_source=str(fichier), session=session)
+    files = [
+        str(f) for f in DOC_FOLDER.rglob("*")
+        if f.is_file() and f.suffix in SUPPORTED_EXTENSIONS
+    ]
+    if not files:
+        return
+    max_workers = min(4, len(files))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_process_file, f, doc_manager): f for f in files}
+        for future in as_completed(futures):
+            filepath = futures[future]
+            try:
+                future.result()
+            except Exception as e:
+                logger.error("Erreur lors du traitement de %s : %s", filepath, e)
 
 
 if __name__ == "__main__":

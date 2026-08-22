@@ -41,7 +41,7 @@ class Chunk(Base):
     embedding_text = Column(Text, nullable=False)
     section = Column(String)
     page = Column(Integer)
-    embedding = Column(Vector(384))
+    embedding = Column(Vector(1024))
     created_at = Column(DateTime, default=datetime.utcnow)
 
     document = relationship("Document", back_populates="chunks")

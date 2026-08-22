@@ -21,7 +21,7 @@ DATABASE_NAME = os.getenv("DATABASE_NAME", "electrodomus")
 DATABASE_USER = os.getenv("DATABASE_USER", "postgres")
 DATABASE_PASSWORD = os.getenv("DATABASE_PASSWORD", "postgres")
 DATABASE_HOST = os.getenv("DATABASE_HOST", "localhost")
-DATABASE_PORT = int(os.getenv("DATABASE_PORT", "5432"))
+DATABASE_PORT = int(os.getenv("DATABASE_PORT", "5433"))
 
 database_url = URL.create(
     drivername=DRIVER_NAME,

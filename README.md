@@ -1,0 +1,1 @@
+Comment se nettoie l'émail lisse de l'enceinte ?

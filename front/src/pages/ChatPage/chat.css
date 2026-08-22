@@ -1,0 +1,67 @@
+.chat-component {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.ingest-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 16px;
+    background-color: #f0f4ff;
+    border-bottom: 1px solid #c8d8ff;
+}
+
+.ingest-button {
+    padding: 7px 14px;
+    background-color: #4a6fa5;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.ingest-button:hover {
+    background-color: #3a5a8a;
+}
+
+.ingest-button:disabled {
+    background-color: #aaa;
+    cursor: not-allowed;
+}
+
+.ingest-button.ingest-confirm {
+    background-color: #2e7d32;
+}
+
+.ingest-button.ingest-confirm:hover {
+    background-color: #1b5e20;
+}
+
+.ingest-path-input {
+    padding: 7px 10px;
+    border: 1px solid #aac;
+    border-radius: 6px;
+    font-size: 14px;
+    min-width: 280px;
+}
+
+.ingest-message {
+    font-size: 13px;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.ingest-message.ok {
+    background-color: #e6f4ea;
+    color: #2e7d32;
+}
+
+.ingest-message.error {
+    background-color: #fdecea;
+    color: #c62828;
+}

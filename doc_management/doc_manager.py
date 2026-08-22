@@ -36,6 +36,7 @@ class DocManager:
                                 # afin de former des chunks plus cohérents
         )
         self.model = SentenceTransformer(embed_model_id)
+        self.converter = DocumentConverter()
 
 
     def _clean_chunk(self, text: str) -> str:
@@ -73,7 +74,7 @@ class DocManager:
             logger.info("Document déjà existant : '%s'", title)
 
         logger.debug("Conversion du document : %s", doc_source)
-        doc = DocumentConverter().convert(source=doc_source).document
+        doc = self.converter.convert(source=doc_source).document
         chunk_iter = self.chunker.chunk(dl_doc=doc)
         chunks = list(chunk_iter)
 
