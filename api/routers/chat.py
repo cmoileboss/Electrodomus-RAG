@@ -29,7 +29,6 @@ class ChatResponse(BaseModel):
 def get_chat_service(request: Request) -> ChatService:
     return ChatService(request.app.state.embed_model)
 
-
 @router.post("/chat", response_model=ChatResponse)
 async def ask(body: ChatRequest, chat_service: ChatService = Depends(get_chat_service)):
     """Retourne une réponse RAG complète à partir de la question et de l'historique."""
