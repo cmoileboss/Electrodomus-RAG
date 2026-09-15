@@ -86,7 +86,7 @@ def build_rag_message(user_input: str, chunks: list) -> str:
         context = "Aucun extrait pertinent trouvé."
     else:
         context = "\n\n---\n\n".join(
-            f"[Source : {c.section or 'inconnue'}, page {c.page or '?'}]\n{c.content}"
+            f"[Source : chunk {c.id}, document {c.document_id or '?'}, {c.section or 'inconnue'}, page {c.page or '?'}]\n{c.content}"
             for c in chunks
         )
     return f"CONTEXTE :\n{context}\n\nQUESTION : {user_input}"
