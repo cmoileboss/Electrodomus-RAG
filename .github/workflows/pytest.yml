@@ -33,4 +33,3 @@ jobs:
 
       - name: Lancer les tests
         run: pytest
-```
