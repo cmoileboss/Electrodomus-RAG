@@ -1,7 +1,7 @@
 import "./chatbot.css"
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { streamMessage } from "../../services/ChatService";
+import { sendMessage } from "../../services/ChatService";
 
 export default function ChatBot() {
     const [messages, setMessages] = useState([]);
@@ -18,13 +18,9 @@ export default function ChatBot() {
         setLoadingAIResponse(true);
         setMessages(prev => [...prev, { role: "user", content: question }]);
 
-        let accumulated = "";
         try {
-            await streamMessage(question, history, (token) => {
-                accumulated += token;
-                setStreamingContent(accumulated);
-            });
-            setMessages(prev => [...prev, { role: "assistant", content: accumulated }]);
+            const { answer } = await sendMessage(question, history);
+            setMessages(prev => [...prev, { role: "assistant", content: answer }]);
         } catch (error) {
             console.error("Error sending message:", error);
         } finally {

@@ -1,13 +1,18 @@
 import "./chat.css";
 import { useState } from "react";
 import ChatBot from "../../components/chatbot/chatbot";
-import { ingestAll, ingestSingle } from "../../services/ChatService";
+import { getChunksCount, getDocuments, ingestAll, ingestSingle } from "../../services/ChatService";
 
 export default function ChatPage() {
     const [ingesting, setIngesting] = useState(false);
     const [ingestMessage, setIngestMessage] = useState(null);
     const [showPathInput, setShowPathInput] = useState(false);
     const [filepath, setFilepath] = useState("");
+    const [showDocuments, setShowDocuments] = useState(false);
+    const [documents, setDocuments] = useState([]);
+    const [loadingDocuments, setLoadingDocuments] = useState(false);
+    const [documentsError, setDocumentsError] = useState(null);
+    const [chunksCount, setChunksCount] = useState(null);
 
     const handleIngestAll = () => {
         setIngesting(true);
@@ -32,6 +37,22 @@ export default function ChatPage() {
             .finally(() => setIngesting(false));
     };
 
+    const handleToggleDocuments = () => {
+        const next = !showDocuments;
+        setShowDocuments(next);
+        if (next) {
+            setLoadingDocuments(true);
+            setDocumentsError(null);
+            getDocuments()
+                .then(setDocuments)
+                .catch((e) => setDocumentsError(e.message))
+                .finally(() => setLoadingDocuments(false));
+            getChunksCount()
+                .then((res) => setChunksCount(res.count))
+                .catch(() => setChunksCount(null));
+        }
+    };
+
     return (
         <div className="chat-component">
             <div className="ingest-toolbar">
@@ -40,6 +61,9 @@ export default function ChatPage() {
                 </button>
                 <button className="ingest-button" onClick={() => { setShowPathInput(p => !p); setIngestMessage(null); }} disabled={ingesting}>
                     Ingérer un fichier…
+                </button>
+                <button className="ingest-button" onClick={handleToggleDocuments}>
+                    {showDocuments ? "Masquer les fichiers" : "Voir les fichiers du RAG"}
                 </button>
                 {showPathInput && (
                     <>
@@ -62,6 +86,29 @@ export default function ChatPage() {
                     </span>
                 )}
             </div>
+            {showDocuments && (
+                <div className="documents-panel">
+                    {chunksCount !== null && (
+                        <span className="documents-chunks-count">Total de chunks : {chunksCount}</span>
+                    )}
+                    {loadingDocuments && <span className="documents-status">Chargement…</span>}
+                    {documentsError && <span className="documents-status error">{documentsError}</span>}
+                    {!loadingDocuments && !documentsError && (
+                        documents.length === 0 ? (
+                            <span className="documents-status">Aucun document ingéré.</span>
+                        ) : (
+                            <ul className="documents-list">
+                                {documents.map((doc) => (
+                                    <li key={doc.id} className="documents-list-item">
+                                        <span className="documents-list-title">{doc.title}</span>
+                                        <span className="documents-list-path">{doc.filepath}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        )
+                    )}
+                </div>
+            )}
             <ChatBot />
         </div>
     );

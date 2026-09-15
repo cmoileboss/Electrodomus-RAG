@@ -58,3 +58,15 @@ export async function ingestSingle(filepath) {
     if (!response.ok) throw new Error(`API error: ${response.status}`);
     return response.json();
 }
+
+export async function getDocuments() {
+    const response = await fetch(`${baseURL}/documents/`);
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    return response.json();
+}
+
+export async function getChunksCount() {
+    const response = await fetch(`${baseURL}/chunks/count`);
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    return response.json();
+}
