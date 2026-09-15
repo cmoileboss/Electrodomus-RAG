@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
 from api.services.document_service import DocumentService
+from api.services.ingestion_service import IngestionService
 from database.database import get_session
 from logger import get_logger
 
@@ -31,6 +32,10 @@ class DocumentResponse(BaseModel):
     date: datetime | None
 
     model_config = {"from_attributes": True}
+
+
+class IngestRequest(BaseModel):
+    filepath: str
 
 
 @router.get("/", response_model=list[DocumentResponse])
@@ -75,3 +80,19 @@ def delete(document_id: int):
     if not deleted:
         raise HTTPException(status_code=404, detail="Document introuvable")
     logger.info("Document %d supprimé", document_id)
+
+
+@router.post("/ingest")
+def ingest_single(body: IngestRequest):
+    try:
+        IngestionService().ingest_single(body.filepath)
+    except FileNotFoundError:
+        logger.warning("Fichier introuvable pour l'ingestion : %s", body.filepath)
+        raise HTTPException(status_code=404, detail=f"Fichier introuvable : {body.filepath}")
+    return {"success": True, "filepath": body.filepath}
+
+
+@router.post("/ingest-all")
+def ingest_all(background_tasks: BackgroundTasks):
+    IngestionService().ingest_all(background_tasks)
+    return {"success": True, "message": "Ingestion démarrée en arrière-plan"}

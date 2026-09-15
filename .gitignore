@@ -4,3 +4,4 @@ Documentation_Electrodomus
 __pycache__
 *.pyc
 front/node_modules
+evaluation/results/
