@@ -5,6 +5,9 @@ from pydantic import BaseModel
 
 from database.database import get_session
 from database.document_repository import DocumentRepository
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -42,6 +45,7 @@ def get_by_id(document_id: int):
     with get_session() as session:
         doc = DocumentRepository(session).get_by_id(document_id)
         if not doc:
+            logger.warning("Document introuvable : %s", document_id)
             raise HTTPException(status_code=404, detail="Document introuvable")
         return DocumentResponse.model_validate(doc)
 
@@ -52,6 +56,7 @@ def create(body: DocumentCreate):
         doc = DocumentRepository(session).create(
             title=body.title, filepath=body.filepath, date=body.date
         )
+        logger.info("Document %d créé : '%s'", doc.id, doc.title)
         return DocumentResponse.model_validate(doc)
 
 
@@ -61,11 +66,13 @@ def update_by_id(document_id: int, body: DocumentUpdate):
         repo = DocumentRepository(session)
         doc = repo.get_by_id(document_id)
         if not doc:
+            logger.warning("Document introuvable pour mise à jour : %s", document_id)
             raise HTTPException(status_code=404, detail="Document introuvable")
         for field, value in body.model_dump(exclude_unset=True).items():
             setattr(doc, field, value)
         session.commit()
         session.refresh(doc)
+        logger.info("Document %d mis à jour", document_id)
         return DocumentResponse.model_validate(doc)
 
 
@@ -74,4 +81,6 @@ def delete(document_id: int):
     with get_session() as session:
         deleted = DocumentRepository(session).delete(document_id)
     if not deleted:
+        logger.warning("Document introuvable pour suppression : %s", document_id)
         raise HTTPException(status_code=404, detail="Document introuvable")
+    logger.info("Document %d supprimé", document_id)

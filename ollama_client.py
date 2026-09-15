@@ -4,8 +4,13 @@ import os
 import httpx
 import requests
 
+from database.chunk_repository import ChunkRepository
+from database.database import get_session
 from logger import get_logger
-
+from dotenv import load_dotenv
+load_dotenv()
+from sentence_transformers import SentenceTransformer
+EMBED_MODEL_ID = os.getenv("EMBED_MODEL_ID", "BAAI/bge-m3")
 logger = get_logger(__name__)
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
@@ -32,8 +37,10 @@ def chat(messages: list[dict], stream: bool = True) -> str:
         "stream": stream,
     }
 
+    logger.debug("Envoi de %d message(s) à Ollama (modèle=%s, stream=%s)", len(messages), MODEL, stream)
     response = requests.post(OLLAMA_URL, json=payload, stream=stream)
     if not response.ok:
+        logger.error("Erreur Ollama %s : %s", response.status_code, response.text)
         raise RuntimeError(f"Ollama {response.status_code}: {response.text}")
 
     full_response = ""
@@ -59,6 +66,7 @@ def chat(messages: list[dict], stream: bool = True) -> str:
 async def stream_chat(messages: list[dict]):
     """Async generator yielding tokens from Ollama as they arrive."""
     payload = {"model": MODEL, "messages": messages, "stream": True}
+    logger.debug("Démarrage du stream Ollama (modèle=%s, %d message(s))", MODEL, len(messages))
     async with httpx.AsyncClient(timeout=None) as client:
         async with client.stream("POST", OLLAMA_URL, json=payload) as response:
             async for line in response.aiter_lines():
@@ -69,6 +77,7 @@ async def stream_chat(messages: list[dict]):
                 if token:
                     yield token
                 if chunk.get("done"):
+                    logger.debug("Stream Ollama terminé.")
                     break
 
 

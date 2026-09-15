@@ -49,6 +49,9 @@ class ChunkRepository:
             .all()
         )
 
+    def count(self) -> int:
+        return self.session.query(Chunk).count()
+    
     def get_nearest(self, embedding: list[float], limit: int = 5) -> list[Chunk]:
         """Recherche les chunks les plus proches par similarité cosinus."""
         return (

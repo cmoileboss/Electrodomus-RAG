@@ -1,9 +1,7 @@
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import (
-    Column, DateTime, ForeignKey, Integer, String, Table, Text
-)
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, Text
 from sqlalchemy.orm import DeclarativeBase, relationship
 
 

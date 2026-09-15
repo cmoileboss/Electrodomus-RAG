@@ -79,12 +79,14 @@ def health():
 @app.post("/chat", response_model=ChatResponse)
 async def ask(request: ChatRequest):
     """Retourne une réponse RAG complète à partir de la question et de l'historique."""
+    logger.info("Requête /chat reçue : %s", request.question)
     embedding = await asyncio.to_thread(
         embed_model.encode, request.question, normalize_embeddings=True
     )
 
     with get_session() as session:
         chunks = ChunkRepository(session).get_nearest(embedding.tolist(), limit=request.limit)
+    logger.debug("%d chunk(s) trouvé(s) pour la requête /chat", len(chunks))
 
     rag_content = build_rag_message(request.question, chunks)
 
@@ -94,6 +96,7 @@ async def ask(request: ChatRequest):
     messages.append({"role": "user", "content": rag_content})
 
     answer = await asyncio.to_thread(chat, messages, False)
+    logger.info("Réponse /chat générée (%d caractères).", len(answer))
 
     updated_history = list(request.history) + [
         Message(role="user", content=request.question),
@@ -109,12 +112,14 @@ async def ask(request: ChatRequest):
 @app.post("/chat/stream")
 async def ask_stream(request: ChatRequest):
     """Stream la réponse RAG token par token via Server-Sent Events."""
+    logger.info("Requête /chat/stream reçue : %s", request.question)
     embedding = await asyncio.to_thread(
         embed_model.encode, request.question, normalize_embeddings=True
     )
 
     with get_session() as session:
         chunks = ChunkRepository(session).get_nearest(embedding.tolist(), limit=request.limit)
+    logger.debug("%d chunk(s) trouvé(s) pour la requête /chat/stream", len(chunks))
 
     rag_content = build_rag_message(request.question, chunks)
 
@@ -140,6 +145,7 @@ async def ask_stream(request: ChatRequest):
             {"role": "user", "content": request.question},
             {"role": "assistant", "content": full_answer},
         ]
+        logger.info("Réponse /chat/stream terminée (%d caractères).", len(full_answer))
         yield f"data: {json_lib.dumps({'type': 'done', 'history': updated_history})}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
@@ -148,15 +154,23 @@ async def ask_stream(request: ChatRequest):
 @app.post("/documents/ingest")
 def ingest_single(request: IngestRequest):
     """Convertit, découpe et indexe un document unique en base."""
+    logger.info("Requête d'ingestion reçue pour '%s'", request.filepath)
     try:
         process_single(request.filepath)
     except FileNotFoundError:
+        logger.warning("Fichier introuvable pour l'ingestion : %s", request.filepath)
         raise HTTPException(status_code=404, detail=f"Fichier introuvable : {request.filepath}")
+    logger.info("Ingestion terminée pour '%s'", request.filepath)
     return {"success": True, "filepath": request.filepath}
 
 
 @app.post("/documents/ingest-all")
 def ingest_all(background_tasks: BackgroundTasks):
     """Lance l'ingestion de tous les documents du dossier Documentation_Electrodomus en arrière-plan."""
+    logger.info("Ingestion globale démarrée en arrière-plan.")
     background_tasks.add_task(process_all)
     return {"success": True, "message": "Ingestion démarrée en arrière-plan"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

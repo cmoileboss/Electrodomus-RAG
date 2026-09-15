@@ -7,6 +7,9 @@ from sqlalchemy.orm import Session
 from database.chunk_repository import ChunkRepository
 from database.database import get_session
 from database.models import Chunk
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/chunks", tags=["chunks"])
 
@@ -49,11 +52,18 @@ def get_all():
         return [ChunkResponse.model_validate(c) for c in chunks]
 
 
+@router.get("/count")
+def count():
+    with get_session() as session:
+        return {"count": ChunkRepository(session).count()}
+
+
 @router.get("/{chunk_id}", response_model=ChunkResponse)
 def get_by_id(chunk_id: int):
     with get_session() as session:
         chunk = ChunkRepository(session).get_by_id(chunk_id)
         if not chunk:
+            logger.warning("Chunk introuvable : %s", chunk_id)
             raise HTTPException(status_code=404, detail="Chunk introuvable")
         return ChunkResponse.model_validate(chunk)
 
@@ -70,6 +80,7 @@ def create(body: ChunkCreate):
             page=body.page,
             embedding=body.embedding,
         )
+        logger.info("Chunk %d créé pour le document %d", chunk.id, chunk.document_id)
         return ChunkResponse.model_validate(chunk)
 
 
@@ -78,11 +89,13 @@ def update_by_id(chunk_id: int, body: ChunkUpdate):
     with get_session() as session:
         chunk = ChunkRepository(session).get_by_id(chunk_id)
         if not chunk:
+            logger.warning("Chunk introuvable pour mise à jour : %s", chunk_id)
             raise HTTPException(status_code=404, detail="Chunk introuvable")
         for field, value in body.model_dump(exclude_unset=True).items():
             setattr(chunk, field, value)
         session.commit()
         session.refresh(chunk)
+        logger.info("Chunk %d mis à jour", chunk_id)
         return ChunkResponse.model_validate(chunk)
 
 
@@ -91,6 +104,8 @@ def delete(chunk_id: int):
     with get_session() as session:
         chunk = ChunkRepository(session).get_by_id(chunk_id)
         if not chunk:
+            logger.warning("Chunk introuvable pour suppression : %s", chunk_id)
             raise HTTPException(status_code=404, detail="Chunk introuvable")
         session.delete(chunk)
         session.commit()
+        logger.info("Chunk %d supprimé", chunk_id)
