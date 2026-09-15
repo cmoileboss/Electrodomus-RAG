@@ -29,9 +29,11 @@ def build_doc_manager() -> DocManager:
 
 
 def process_single(filepath: str):
+    logger.info("Traitement du fichier unique : %s", filepath)
     doc_manager = build_doc_manager()
     with get_session() as session:
         doc_manager.process_document(doc_source=filepath, session=session)
+    logger.info("Traitement du fichier unique terminé : %s", filepath)
 
 
 def _process_file(filepath: str, doc_manager: DocManager):
@@ -47,7 +49,9 @@ def process_all():
         if f.is_file() and f.suffix in SUPPORTED_EXTENSIONS
     ]
     if not files:
+        logger.warning("Aucun fichier support\u00e9 trouv\u00e9 dans %s", DOC_FOLDER)
         return
+    logger.info("Ingestion de %d fichier(s) depuis %s", len(files), DOC_FOLDER)
     max_workers = min(4, len(files))
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(_process_file, f, doc_manager): f for f in files}
@@ -57,6 +61,7 @@ def process_all():
                 future.result()
             except Exception as e:
                 logger.error("Erreur lors du traitement de %s : %s", filepath, e)
+    logger.info("Ingestion globale termin\u00e9e (%d fichier(s) trait\u00e9s).", len(files))
 
 
 if __name__ == "__main__":
