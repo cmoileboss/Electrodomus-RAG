@@ -110,8 +110,13 @@ def main():
 
 
         with get_session() as session:
-            similar_chunks = ChunkRepository(session).get_nearest(embedding, limit=5)
-        logger.info(f"{len(similar_chunks)} chunks trouvés : {[c.id for c in similar_chunks]}")
+            similar_vectorized_chunks = ChunkRepository(session).get_nearest(embedding, limit=5)
+            logger.info(f"{len(similar_vectorized_chunks)} chunks trouvés par comparaison vectorielle (similarité cosinus) : {[c.id for c in similar_vectorized_chunks]}")
+            similar_bm25_chunks = ChunkRepository(session).search_bm25(user_input, limit=5)
+            logger.info(f"{len(similar_bm25_chunks)} chunks trouvés par recherche BM25 : {[c.id for c in similar_bm25_chunks]}")
+
+        similar_chunks = similar_vectorized_chunks & similar_bm25_chunks
+        logger.info(f"{len(similar_chunks)} chunks trouvés par combinaison des deux méthodes : {[c.id for c in similar_chunks]}")
         rag_content = build_rag_message(user_input, similar_chunks)
         
         history.append({"role": "user", "content": rag_content})

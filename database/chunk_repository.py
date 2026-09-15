@@ -66,11 +66,12 @@ class ChunkRepository:
             .limit(limit)
             .all()
         )
-        logger.debug("%d chunk(s) trouvés par similarité cosinus (limit=%d)", len(chunks), limit)
+        chunk_ids = { c.id for c in chunks }
+        logger.debug("%d chunk(s) trouvés par similarité cosinus : %s", len(chunks), chunk_ids)
         return chunks
 
-    def search_bm25(self, query: str, limit: int = 5) -> list[tuple[Chunk, float]]:
-        """Recherche BM25 via pg_search, retourne (chunk, score)."""
+    def search_bm25(self, query: str, limit: int = 5) -> list[Chunk]:
+        """Recherche BM25 via pg_search, retourne les chunks triés par score."""
         rows = self.session.execute(
             text("""
                 SELECT id, paradedb.score(id) AS score
@@ -87,8 +88,8 @@ class ChunkRepository:
         id_score = {row.id: row.score for row in rows}
         chunks = self.session.query(Chunk).filter(Chunk.id.in_(id_score)).all()
         chunks.sort(key=lambda c: id_score[c.id], reverse=True)
-        logger.debug("%d chunk(s) trouvés par BM25 pour la requête : %s", len(chunks), query)
-        return [(c, id_score[c.id]) for c in chunks]
+        logger.debug("%d chunk(s) trouvés par BM25 pour la requête : %s", len(chunks), id_score.items())
+        return chunks
 
     def delete(self, chunk_id: int) -> bool:
         chunk = self.get_by_id(chunk_id)
