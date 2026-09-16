@@ -11,7 +11,9 @@ from dotenv import load_dotenv
 import os
     
 load_dotenv()
-CHUNK_NB_LIMIT = int(os.getenv("CHUNK_NB_LIMIT", "30"))
+
+CHUNK_LIMIT_VECTORIAL = int(os.getenv("CHUNK_LIMIT_VECTORIAL", "30"))
+CHUNK_LIMIT_BM25 = int(os.getenv("CHUNK_NB_LIMIT", "30"))
 
 logger = get_logger(__name__)
 
@@ -71,20 +73,20 @@ class ChunkRepository:
         """Retourne le nombre total de chunks."""
         return self.session.query(Chunk).count()
 
-    def get_nearest(self, embedding: list[float], limit: int = CHUNK_NB_LIMIT) -> list[Chunk]:
+    def get_nearest(self, embedding: list[float]) -> list[Chunk]:
         """Recherche les chunks les plus proches par similarité cosinus."""
         chunks = (
             self.session.query(Chunk)
             .filter(Chunk.embedding.isnot(None))
             .order_by(Chunk.embedding.cosine_distance(embedding))
-            .limit(limit)
+            .limit(CHUNK_LIMIT_VECTORIAL)
             .all()
         )
         chunk_ids = { c.id for c in chunks }
         logger.debug("%d chunk(s) trouvés par similarité cosinus : %s", len(chunks), chunk_ids)
         return chunks
 
-    def search_bm25(self, query: str, limit: int = CHUNK_NB_LIMIT) -> list[Chunk]:
+    def search_bm25(self, query: str) -> list[Chunk]:
         """Recherche BM25 via pg_textsearch (index chunks_bm25_idx sur content), triée par pertinence."""
         rows = self.session.execute(
             text("""
@@ -93,7 +95,7 @@ class ChunkRepository:
                 ORDER BY score
                 LIMIT :limit
             """),
-            {"query": query, "limit": limit},
+            {"query": query, "limit": CHUNK_LIMIT_BM25},
         ).fetchall()
         if not rows:
             logger.debug("Aucun résultat BM25 pour la requête : %s", query)

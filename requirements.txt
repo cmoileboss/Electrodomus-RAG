@@ -8,3 +8,4 @@ uvicorn[standard]==0.35.0
 python-dotenv==1.1.1
 httpx==0.28.1
 mistralai-search-toolkit[vespa]==0.0.13
+python-multipart

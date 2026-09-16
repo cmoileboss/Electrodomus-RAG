@@ -7,16 +7,18 @@ import requests
 
 from database.chunk_repository import ChunkRepository
 from database.database import get_session
-
 from database.models import Chunk
+
 from logger import get_logger
 
 logger = get_logger(__name__)
 
-EMBED_MODEL_ID = os.getenv("EMBED_MODEL_ID", "BAAI/bge-m3")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
 MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:latest")
-CHUNK_NB_LIMIT = int(os.getenv("CHUNK_NB_LIMIT", "30"))
+
+CHUNK_LIMIT_RRF = int(os.getenv("CHUNK_LIMIT_RRF", "10"))
+CHUNK_LIMIT_CROSS_ENCODER = int(os.getenv("CHUNK_LIMIT_CROSS_ENCODER", "10"))
+
 
 SYSTEM_PROMPT = """\
 Tu es un assistant technique expert pour la marque Electrodomus, spécialisé dans le dépannage,
@@ -35,8 +37,9 @@ Règles absolues :
 class ChatService:
     """Orchestre le pipeline RAG : recherche de contexte pertinent puis génération de réponse."""
 
-    def __init__(self, embed_model):
+    def __init__(self, embed_model, reranker):
         self.embed_model = embed_model
+        self.reranker = reranker
 
     async def _embed(self, question: str):
         """Calcule l'embedding normalisé de la question, dans un thread séparé."""
@@ -45,33 +48,16 @@ class ChatService:
         )
 
     @staticmethod
-    def _get_nearest_vectorized_chunks(embedding, limit: int = CHUNK_NB_LIMIT) -> list[Chunk]:
+    def _get_nearest_vectorized_chunks(embedding) -> list[Chunk]:
         """Recherche les chunks les plus proches par similarité vectorielle (cosinus)."""
         with get_session() as session:
-            return ChunkRepository(session).get_nearest(embedding.tolist(), limit=limit)
+            return ChunkRepository(session).get_nearest(embedding.tolist())
 
     @staticmethod
-    def _get_nearest_bm25_chunks(question: str, limit: int = CHUNK_NB_LIMIT) -> list[Chunk]:
+    def _get_nearest_bm25_chunks(question: str) -> list[Chunk]:
         """Recherche les chunks les plus pertinents par correspondance lexicale (BM25)."""
         with get_session() as session:
-            return ChunkRepository(session).search_bm25(question, limit=limit)
-
-    @staticmethod
-    def _merge_scores(vector_chunks: list[Chunk], bm25_chunks: list[Chunk], limit: int = CHUNK_NB_LIMIT, k: int = 60) -> list[Chunk]:
-        """Fusionne les résultats vectoriels et BM25 par Reciprocal Rank Fusion (RRF), sur l'id du chunk."""
-        scores: dict[int, float] = {}
-        chunks_by_id: dict[int, object] = {}
-
-        for rang, chunk in enumerate(vector_chunks, start=1):
-            chunks_by_id[chunk.id] = chunk
-            scores[chunk.id] = scores.get(chunk.id, 0.0) + 1 / (k + rang)
-
-        for rang, chunk in enumerate(bm25_chunks, start=1):
-            chunks_by_id.setdefault(chunk.id, chunk)
-            scores[chunk.id] = scores.get(chunk.id, 0.0) + 1 / (k + rang)
-
-        ordered_ids = sorted(scores, key=scores.get, reverse=True)
-        return [chunks_by_id[chunk_id] for chunk_id in ordered_ids[:limit]]
+            return ChunkRepository(session).search_bm25(question)
 
     @staticmethod
     def _chat(messages: list[dict], stream: bool = True) -> str:
@@ -139,7 +125,7 @@ class ChatService:
 
     @staticmethod
     def _reciprocal_rank_fusion(vectorial_list: list[Chunk], bm_list: list[Chunk], k: int = 60) -> list[Chunk]:
-        """Effectue la fusion par rang réciproque (RRF) de deux listes de résultats.
+        """Effectue la fusion par rang réciproque (RRF) de deux listes de résultats, dédoublonnée par id de chunk.
 
         Args:
             vectorial_list (list[Chunk]): Liste des chunks triés par similarité vectorielle.
@@ -147,42 +133,47 @@ class ChatService:
             k (int, optional): Paramètre de décalage pour le calcul des scores RRF. 60 par défaut.
 
         Returns:
-            list[tuple[Chunk, float]]: Liste des tuples (chunk, score RRF) triée par score décroissant.
+            list[Chunk]: Liste des chunks triée par score RRF décroissant.
         """
-        scores = {}
+        scores: dict[int, float] = {}
+        chunks_by_id: dict[int, Chunk] = {}
 
-        for rank, element in enumerate(vectorial_list):
-            scores[element] = 1 / (k + rank + 1)
+        for rank, chunk in enumerate(vectorial_list):
+            chunks_by_id[chunk.id] = chunk
+            scores[chunk.id] = scores.get(chunk.id, 0.0) + 1 / (k + rank + 1)
 
-        for rank, element in enumerate(bm_list):
-            scores[element] = scores.get(element, 0) + 1 / (k + rank + 1)
+        for rank, chunk in enumerate(bm_list):
+            chunks_by_id.setdefault(chunk.id, chunk)
+            scores[chunk.id] = scores.get(chunk.id, 0.0) + 1 / (k + rank + 1)
 
-        sorted_chunks =sorted(
-            scores.items(),
-            key=lambda item: item[1],
-            reverse=True,
-        )
-
-        return [c[0] for c in sorted_chunks]
+        ordered_ids = sorted(scores, key=scores.get, reverse=True)
+        return [chunks_by_id[chunk_id] for chunk_id in ordered_ids[:CHUNK_LIMIT_RRF]]
     
-    async def ask(self, question: str, history: list, limit: int = CHUNK_NB_LIMIT) -> dict:
+    async def ask(self, question: str, history: list) -> dict:
         """Retourne une réponse RAG complète : {answer, sources}."""
         logger.info("Requête /chat reçue : %s", question)
         embedding = await self._embed(question)
 
-        nearest_vectorized_chunks = self._get_nearest_vectorized_chunks(embedding, limit)
-        logger.debug("%d chunk(s) trouvé(s) pour la requête /chat (limite : %d): %s", len(nearest_vectorized_chunks), limit, [c.id for c in nearest_vectorized_chunks])
+        nearest_vectorized_chunks = self._get_nearest_vectorized_chunks(embedding)
+        logger.debug("%d chunk(s) trouvé(s) pour la requête /chat : %s", len(nearest_vectorized_chunks), [c.id for c in nearest_vectorized_chunks])
 
-        nearest_bm25_chunks = self._get_nearest_bm25_chunks(question, limit)
-        logger.debug("%d chunk(s) BM25 trouvé(s) pour la requête /chat (limite : %d): %s", len(nearest_bm25_chunks), limit, [c.id for c in nearest_bm25_chunks])
+        nearest_bm25_chunks = self._get_nearest_bm25_chunks(question)
+        logger.debug("%d chunk(s) BM25 trouvé(s) pour la requête /chat : %s", len(nearest_bm25_chunks), [c.id for c in nearest_bm25_chunks])
 
-        nearest_chunks = self._reciprocal_rank_fusion(nearest_vectorized_chunks, nearest_bm25_chunks)
-        logger.debug("%d chunk(s) fusionné(s) pour la requête /chat : %s", len(nearest_chunks), [c.id for c in nearest_chunks])
+        nearest_rrf_chunks = self._reciprocal_rank_fusion(nearest_vectorized_chunks, nearest_bm25_chunks)
+        logger.debug("%d chunk(s) fusionné(s) pour la requête /chat : %s", len(nearest_rrf_chunks), [c.id for c in nearest_rrf_chunks])
 
-        rag_content = self._build_rag_message(question, nearest_chunks)
+        reranked_nearest_chunks = self.reranker.rerank(
+            question,
+            nearest_rrf_chunks,
+            top_k=5,
+        )
+        logger.debug("%d chunk(s) reranké(s) pour la requête /chat : %s", len(reranked_nearest_chunks), [c.id for c in reranked_nearest_chunks])
+
+        rag_content = self._build_rag_message(question, reranked_nearest_chunks)
         full_message = self._build_messages(question, history, rag_content)
-    
+        print(full_message)
         answer = await asyncio.to_thread(self._chat, full_message, False)
         logger.info("Réponse /chat générée (%d caractères) : %s", len(answer), answer[:100] + "..." if len(answer) > 100 else answer)
 
-        return {"answer": answer, "sources": self._build_sources(nearest_chunks)}
+        return {"answer": answer, "sources": self._build_sources(reranked_nearest_chunks)}

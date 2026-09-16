@@ -32,7 +32,7 @@ class Document(Base):
     filepath = Column(String, nullable=False, unique=True)
     date = Column(DateTime)
 
-    chunks = relationship("Chunk", back_populates="document")
+    chunks = relationship("Chunk", back_populates="document", cascade="all, delete-orphan")
 
 
 class Chunk(Base):

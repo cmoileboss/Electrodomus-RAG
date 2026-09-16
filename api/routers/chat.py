@@ -35,13 +35,16 @@ class ChatResponse(BaseModel):
 
 
 def get_chat_service(request: Request) -> ChatService:
-    """Dépendance FastAPI fournissant un ChatService lié au modèle d'embedding de l'application."""
-    return ChatService(request.app.state.embed_model)
+    """Dépendance FastAPI fournissant un ChatService lié aux modèles chargés au démarrage de l'application."""
+    return ChatService(
+        embed_model=request.app.state.embed_model,
+        reranker=request.app.state.reranker,
+    )
 
 @router.post("/chat", response_model=ChatResponse)
 async def ask(body: ChatRequest, chat_service: ChatService = Depends(get_chat_service)):
     """Retourne une réponse RAG complète à partir de la question et de l'historique."""
-    result = await chat_service.ask(body.question, body.history, body.limit)
+    result = await chat_service.ask(body.question, body.history)
     updated_history = list(body.history) + [
         Message(role="user", content=body.question),
         Message(role="assistant", content=result["answer"]),

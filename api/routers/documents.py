@@ -1,13 +1,16 @@
 """Endpoints CRUD /documents et endpoints d'ingestion de documents."""
 
+import shutil
 from datetime import datetime
+from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from api.services.document_service import DocumentService
 from api.services.ingestion_service import IngestionService
 from database.database import get_session
+from doc_management.chunks_storing import DOC_FOLDER, SUPPORTED_EXTENSIONS
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -113,3 +116,25 @@ def ingest_all(background_tasks: BackgroundTasks):
     """Démarre en arrière-plan l'ingestion de tous les documents du dossier source."""
     IngestionService().ingest_all(background_tasks)
     return {"success": True, "message": "Ingestion démarrée en arrière-plan"}
+
+
+@router.post("/ingest-upload")
+async def ingest_upload(file: UploadFile = File(...)):
+    """Enregistre un fichier envoyé depuis le navigateur puis lance son ingestion synchrone."""
+    # Path(...).name élimine tout composant de dossier pour éviter une traversée de chemin.
+    filename = Path(file.filename).name
+    extension = Path(filename).suffix.lower()
+    if extension not in SUPPORTED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Extension non supportée : {extension}")
+
+    DOC_FOLDER.mkdir(parents=True, exist_ok=True)
+    destination = DOC_FOLDER / filename
+    with destination.open("wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    try:
+        IngestionService().ingest_single(str(destination))
+    except FileNotFoundError:
+        logger.warning("Fichier introuvable après enregistrement : %s", destination)
+        raise HTTPException(status_code=404, detail=f"Fichier introuvable : {destination}")
+    return {"success": True, "filepath": str(destination)}
