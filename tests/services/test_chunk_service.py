@@ -1,9 +1,12 @@
+"""Tests unitaires de ChunkService, avec un repository mocké."""
+
 from unittest.mock import MagicMock
 
 from api.services.chunk_service import ChunkService
 
 
 def _make_service():
+    """Crée un ChunkService avec une session et un repository mockés."""
     session = MagicMock()
     service = ChunkService(session)
     service.repository = MagicMock()
@@ -11,6 +14,7 @@ def _make_service():
 
 
 def test_get_all_queries_session_directly():
+    """get_all() interroge directement la session (pas le repository)."""
     service, session = _make_service()
     session.query.return_value.all.return_value = ["chunk_a", "chunk_b"]
 
@@ -21,6 +25,7 @@ def test_get_all_queries_session_directly():
 
 
 def test_count_delegates_to_repository():
+    """count() délègue au repository et retourne son résultat."""
     service, _ = _make_service()
     service.repository.count.return_value = 42
 
@@ -28,6 +33,7 @@ def test_count_delegates_to_repository():
 
 
 def test_get_by_id_delegates_to_repository():
+    """get_by_id() délègue au repository et retourne son résultat."""
     service, _ = _make_service()
     fake_chunk = MagicMock()
     service.repository.get_by_id.return_value = fake_chunk
@@ -37,6 +43,7 @@ def test_get_by_id_delegates_to_repository():
 
 
 def test_create_delegates_and_returns_chunk():
+    """create() transmet les champs au repository et retourne le chunk créé."""
     service, _ = _make_service()
     fake_chunk = MagicMock(id=1)
     service.repository.create.return_value = fake_chunk
@@ -54,6 +61,7 @@ def test_create_delegates_and_returns_chunk():
 
 
 def test_update_returns_none_when_not_found():
+    """update() retourne None et ne commit pas si le chunk est introuvable."""
     service, session = _make_service()
     service.repository.get_by_id.return_value = None
 
@@ -62,6 +70,7 @@ def test_update_returns_none_when_not_found():
 
 
 def test_update_applies_fields_and_commits():
+    """update() applique les champs modifiés et commit la session."""
     service, session = _make_service()
     fake_chunk = MagicMock()
     service.repository.get_by_id.return_value = fake_chunk
@@ -75,6 +84,7 @@ def test_update_applies_fields_and_commits():
 
 
 def test_delete_true_when_repository_confirms():
+    """delete() retourne True quand le repository confirme la suppression."""
     service, _ = _make_service()
     service.repository.delete.return_value = True
 
@@ -82,6 +92,7 @@ def test_delete_true_when_repository_confirms():
 
 
 def test_delete_false_when_not_found():
+    """delete() retourne False quand le chunk est introuvable."""
     service, _ = _make_service()
     service.repository.delete.return_value = False
 

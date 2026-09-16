@@ -1,3 +1,5 @@
+"""Modèles SQLAlchemy : Document, Chunk et Model, ainsi que leur association many-to-many."""
+
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
@@ -6,6 +8,8 @@ from sqlalchemy.orm import DeclarativeBase, relationship
 
 
 class Base(DeclarativeBase):
+    """Classe de base déclarative SQLAlchemy commune à tous les modèles."""
+
     pass
 
 
@@ -19,6 +23,8 @@ chunk_model = Table(
 
 
 class Document(Base):
+    """Un document source (PDF, HTML, etc.) ingesté dans la documentation Electrodomus."""
+
     __tablename__ = "documents"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -30,6 +36,8 @@ class Document(Base):
 
 
 class Chunk(Base):
+    """Un segment de texte extrait d'un document, avec son embedding et son texte contextualisé."""
+
     __tablename__ = "chunks"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -47,6 +55,8 @@ class Chunk(Base):
 
 
 class Model(Base):
+    """Un modèle d'appareil Electrodomus (ex. four, lave-linge) rattaché à des chunks."""
+
     __tablename__ = "models"
 
     id = Column(Integer, primary_key=True, autoincrement=True)

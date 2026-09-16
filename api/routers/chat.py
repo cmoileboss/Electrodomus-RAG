@@ -1,3 +1,5 @@
+"""Endpoint /chat : reçoit une question et renvoie une réponse RAG avec ses sources."""
+
 import json as json_lib
 
 from fastapi import APIRouter, Depends, Request
@@ -10,23 +12,30 @@ router = APIRouter(tags=["chat"])
 
 
 class Message(BaseModel):
+    """Un message de la conversation (utilisateur ou assistant)."""
+
     role: str  # "user" | "assistant"
     content: str
 
 
 class ChatRequest(BaseModel):
+    """Corps de la requête POST /chat."""
+
     question: str
     history: list[Message] = []
     limit: int = 5
 
 
 class ChatResponse(BaseModel):
+    """Réponse RAG : texte généré, historique mis à jour et sources citées."""
+
     answer: str
     history: list[Message]
     sources: list[dict]
 
 
 def get_chat_service(request: Request) -> ChatService:
+    """Dépendance FastAPI fournissant un ChatService lié au modèle d'embedding de l'application."""
     return ChatService(request.app.state.embed_model)
 
 @router.post("/chat", response_model=ChatResponse)
@@ -38,13 +47,3 @@ async def ask(body: ChatRequest, chat_service: ChatService = Depends(get_chat_se
         Message(role="assistant", content=result["answer"]),
     ]
     return ChatResponse(answer=result["answer"], history=updated_history, sources=result["sources"])
-
-
-@router.post("/chat/stream")
-async def ask_stream(body: ChatRequest, chat_service: ChatService = Depends(get_chat_service)):
-    """Stream la réponse RAG token par token via Server-Sent Events."""
-    async def generate():
-        async for event in chat_service.stream_answer(body.question, body.history, body.limit):
-            yield f"data: {json_lib.dumps(event)}\n\n"
-
-    return StreamingResponse(generate(), media_type="text/event-stream")

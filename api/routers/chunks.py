@@ -1,3 +1,5 @@
+"""Endpoints CRUD /chunks pour gérer les chunks de documents indeixés en base."""
+
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
@@ -13,6 +15,8 @@ router = APIRouter(prefix="/chunks", tags=["chunks"])
 
 
 class ChunkCreate(BaseModel):
+    """Corps de requête pour créer un chunk."""
+
     document_id: int
     chunk_index: int
     content: str
@@ -23,6 +27,8 @@ class ChunkCreate(BaseModel):
 
 
 class ChunkUpdate(BaseModel):
+    """Corps de requête pour mettre à jour partiellement un chunk."""
+
     content: str | None = None
     embedding_text: str | None = None
     section: str | None = None
@@ -31,6 +37,8 @@ class ChunkUpdate(BaseModel):
 
 
 class ChunkResponse(BaseModel):
+    """Représentation d'un chunk retournée par l'API."""
+
     id: int
     document_id: int
     chunk_index: int
@@ -45,6 +53,7 @@ class ChunkResponse(BaseModel):
 
 @router.get("/", response_model=list[ChunkResponse])
 def get_all():
+    """Liste tous les chunks."""
     with get_session() as session:
         chunks = ChunkService(session).get_all()
         return [ChunkResponse.model_validate(c) for c in chunks]
@@ -52,12 +61,14 @@ def get_all():
 
 @router.get("/count")
 def count():
+    """Retourne le nombre total de chunks."""
     with get_session() as session:
         return {"count": ChunkService(session).count()}
 
 
 @router.get("/{chunk_id}", response_model=ChunkResponse)
 def get_by_id(chunk_id: int):
+    """Récupère un chunk par son id, ou 404 si introuvable."""
     with get_session() as session:
         chunk = ChunkService(session).get_by_id(chunk_id)
         if not chunk:
@@ -68,6 +79,7 @@ def get_by_id(chunk_id: int):
 
 @router.post("/", response_model=ChunkResponse, status_code=201)
 def create(body: ChunkCreate):
+    """Crée un nouveau chunk."""
     with get_session() as session:
         chunk = ChunkService(session).create(
             document_id=body.document_id,
@@ -83,6 +95,7 @@ def create(body: ChunkCreate):
 
 @router.put("/{chunk_id}", response_model=ChunkResponse)
 def update_by_id(chunk_id: int, body: ChunkUpdate):
+    """Met à jour partiellement un chunk existant, ou 404 si introuvable."""
     with get_session() as session:
         chunk = ChunkService(session).update(chunk_id, body.model_dump(exclude_unset=True))
         if not chunk:
@@ -92,6 +105,7 @@ def update_by_id(chunk_id: int, body: ChunkUpdate):
 
 @router.delete("/{chunk_id}", status_code=204)
 def delete(chunk_id: int):
+    """Supprime un chunk par son id, ou 404 si introuvable."""
     with get_session() as session:
         deleted = ChunkService(session).delete(chunk_id)
     if not deleted:

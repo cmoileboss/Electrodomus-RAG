@@ -1,3 +1,5 @@
+"""Point d'entrée de l'application FastAPI : création de l'app, cycle de vie et enregistrement des routers."""
+
 import asyncio
 import os
 from contextlib import asynccontextmanager

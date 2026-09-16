@@ -20,7 +20,7 @@ from database.database import get_session
 from evaluation.dataset import EVAL_QUESTIONS
 from evaluation.metrics import precision_at_k, recall_at_k, reciprocal_rank
 from logger import get_logger
-from ollama_client import SYSTEM_PROMPT, build_rag_message, chat
+from api.services.chat_service import SYSTEM_PROMPT, ChatService
 
 load_dotenv()
 logger = get_logger(__name__)
@@ -31,6 +31,7 @@ RESULTS_DIR = Path(__file__).parent / "results"
 
 
 def run_evaluation(k_values: list[int], output_path: Path) -> None:
+    """Exécute l'évaluation sur EVAL_QUESTIONS et écrit le rapport en console et en JSON."""
     max_k = max(k_values)
     embed_model = SentenceTransformer(EMBED_MODEL_ID, use_auth_token=HF_TOKEN)
     generated_at = datetime.now().isoformat(timespec="seconds")
@@ -78,6 +79,7 @@ def run_evaluation(k_values: list[int], output_path: Path) -> None:
 
 
 def _print_report(results: list[dict], k_values: list[int]) -> None:
+    """Affiche dans la console les métriques par question et leurs moyennes."""
     n = len(results)
     for r in results:
         print(f"\nQ: {r['question']}")
@@ -95,6 +97,7 @@ def _print_report(results: list[dict], k_values: list[int]) -> None:
 
 
 def _write_json(results: list[dict], k_values: list[int], generated_at: str, output_path: Path) -> None:
+    """Écrit les résultats détaillés et le résumé des métriques dans un fichier JSON."""
     n = len(results)
     summary = {
         "precision": {str(k): sum(r["metrics"]["precision"][str(k)] for r in results) / n for k in k_values},

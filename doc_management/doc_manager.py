@@ -1,3 +1,5 @@
+"""Conversion, découpage (chunking), nettoyage et encodage des documents avant indexation en base."""
+
 from pathlib import Path
 
 from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
@@ -19,6 +21,8 @@ logger = get_logger(__name__)
 
 
 class DocManager:
+    """Convertit un fichier source en chunks nettoyés, contextualisés, encodés puis persistés."""
+
     def __init__(self, embed_model_id: str, hf_token: str, max_tokens: int):
         logger.info(f"Initialisation du DocManager avec le modèle d'embedding : {embed_model_id}")
         tokenizer = HuggingFaceTokenizer(
@@ -60,6 +64,7 @@ class DocManager:
         return text.strip()
 
     def process_document(self, doc_source: str, session: Session):
+        """Convertit, découpe, encode et persiste les chunks d'un document (créé s'il n'existe pas)."""
         filepath = str(Path(doc_source).resolve())
         title = Path(doc_source).stem
 

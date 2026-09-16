@@ -1,3 +1,5 @@
+"""Connexion \u00e0 la base PostgreSQL : configuration du moteur, sessions et initialisation du sch\u00e9ma."""
+
 import os
 import sys
 from pathlib import Path
@@ -33,6 +35,7 @@ database_url = URL.create(
 )
 
 def get_session():
+    """Crée un nouveau moteur et retourne une session SQLAlchemy."""
     engine = create_engine(database_url, echo=False)
     Session = sessionmaker(bind=engine)
     return Session()
@@ -51,6 +54,7 @@ DEFAULT_MODELS = [
 
 
 def init_db():
+    """Crée les extensions Postgres, les tables, l'index BM25 et sème les modèles par défaut."""
     engine = create_engine(database_url, echo=True)
     with engine.connect() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
@@ -76,6 +80,7 @@ def init_db():
 
 
 def _seed_models(engine):
+    """Insère les modèles d'appareils par défaut absents de la base."""
     Session = sessionmaker(bind=engine)
     with Session() as session:
         existing = {m.name for m in session.query(Model.name).all()}

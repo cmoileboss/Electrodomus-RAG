@@ -1,28 +1,125 @@
+"""Service RAG : embedding de la question, recherche vectorielle + BM25, fusion RRF et génération via Ollama."""
+
 import asyncio
+import os
+import json
+import requests
 
 from database.chunk_repository import ChunkRepository
 from database.database import get_session
+
 from logger import get_logger
-from ollama_client import SYSTEM_PROMPT, build_rag_message, chat, stream_chat
 
 logger = get_logger(__name__)
 
+EMBED_MODEL_ID = os.getenv("EMBED_MODEL_ID", "BAAI/bge-m3")
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
+MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:latest")
+CHUNK_NB_LIMIT = int(os.getenv("CHUNK_NB_LIMIT", "30"))
+
+SYSTEM_PROMPT = """\
+Tu es un assistant technique expert pour la marque Electrodomus, spécialisé dans le dépannage,
+l'installation et l'entretien des appareils électroménagers (fours, lave-linge, lave-vaisselle).
+
+Règles absolues :
+- Réponds UNIQUEMENT à partir des extraits de documentation fournis dans le CONTEXTE.
+- Si la réponse ne figure pas dans le contexte, réponds exactement :
+  "Je n'ai pas trouvé cette information dans la documentation Electrodomus."
+- Ne complète jamais avec tes connaissances générales.
+- Cite TOUJOURS la source (section / page) entre parenthèses après chaque information.
+- Si plusieurs extraits se contredisent, signale la contradiction.
+- Réponds en français, de façon claire, structurée et concise.
+"""
 
 class ChatService:
+    """Orchestre le pipeline RAG : recherche de contexte pertinent puis génération de réponse."""
+
     def __init__(self, embed_model):
         self.embed_model = embed_model
 
     async def _embed(self, question: str):
+        """Calcule l'embedding normalisé de la question, dans un thread séparé."""
         return await asyncio.to_thread(
             self.embed_model.encode, question, normalize_embeddings=True
         )
 
-    def _get_chunks(self, embedding, limit: int) -> list:
+    def _get_nearest_vectorized_chunks(self, embedding, limit: int = CHUNK_NB_LIMIT) -> list:
+        """Recherche les chunks les plus proches par similarité vectorielle (cosinus)."""
         with get_session() as session:
             return ChunkRepository(session).get_nearest(embedding.tolist(), limit=limit)
 
+    def _get_nearest_bm25_chunks(self, question: str, limit: int = CHUNK_NB_LIMIT) -> list:
+        """Recherche les chunks les plus pertinents par correspondance lexicale (BM25)."""
+        with get_session() as session:
+            return ChunkRepository(session).search_bm25(question, limit=limit)
+
+    @staticmethod
+    def _merge_scores(vector_chunks: list, bm25_chunks: list, limit: int = CHUNK_NB_LIMIT, k: int = 60) -> list:
+        """Fusionne les résultats vectoriels et BM25 par Reciprocal Rank Fusion (RRF), sur l'id du chunk."""
+        scores: dict[int, float] = {}
+        chunks_by_id: dict[int, object] = {}
+
+        for rang, chunk in enumerate(vector_chunks, start=1):
+            chunks_by_id[chunk.id] = chunk
+            scores[chunk.id] = scores.get(chunk.id, 0.0) + 1 / (k + rang)
+
+        for rang, chunk in enumerate(bm25_chunks, start=1):
+            chunks_by_id.setdefault(chunk.id, chunk)
+            scores[chunk.id] = scores.get(chunk.id, 0.0) + 1 / (k + rang)
+
+        ordered_ids = sorted(scores, key=scores.get, reverse=True)
+        return [chunks_by_id[chunk_id] for chunk_id in ordered_ids[:limit]]
+
+    @staticmethod
+    def _chat(messages: list[dict], stream: bool = True) -> str:
+        """Envoie les messages à Ollama et retourne la réponse complète (streaming ou non)."""
+        payload = {
+            "model": MODEL,
+            "messages": messages,
+            "stream": stream,
+        }
+
+        logger.debug("Envoi de %d message(s) à Ollama (modèle=%s, stream=%s)", len(messages), MODEL, stream)
+        response = requests.post(OLLAMA_URL, json=payload, stream=stream)
+        if not response.ok:
+            logger.error("Erreur Ollama %s : %s", response.status_code, response.text)
+            raise RuntimeError(f"Ollama {response.status_code}: {response.text}")
+
+        full_response = ""
+
+        if stream:
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                chunk = json.loads(line)
+                token = chunk.get("message", {}).get("content", "")
+                print(token, end="", flush=True)
+                full_response += token
+                if chunk.get("done"):
+                    break
+            print()
+        else:
+            data = response.json()
+            full_response = data["message"]["content"]
+
+        return full_response
+
+
+    @staticmethod
+    def _build_rag_message(user_input: str, chunks: list) -> str:
+        """Construit le message utilisateur contenant le contexte des chunks et la question."""
+        if not chunks:
+            context = "Aucun extrait pertinent trouvé."
+        else:
+            context = "\n\n---\n\n".join(
+                f"[Source : chunk {c.id}, document {c.document_id or '?'}, {c.section or 'inconnue'}, page {c.page or '?'}]\n{c.content}"
+                for c in chunks
+            )
+        return f"CONTEXTE :\n{context}\n\nQUESTION : {user_input}"
+
     @staticmethod
     def _build_messages(question: str, history: list, rag_content: str) -> list[dict]:
+        """Assemble les messages Ollama : prompt système, historique puis message RAG."""
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         for msg in history:
             messages.append({"role": msg.role, "content": msg.content})
@@ -31,48 +128,31 @@ class ChatService:
 
     @staticmethod
     def _build_sources(chunks: list) -> list[dict]:
+        """Extrait les métadonnées de source (section, page, document) des chunks retenus."""
         return [
             {"section": c.section, "page": c.page, "document_id": c.document_id}
             for c in chunks
         ]
 
-    async def ask(self, question: str, history: list, limit: int) -> dict:
+
+    async def ask(self, question: str, history: list, limit: int = CHUNK_NB_LIMIT) -> dict:
         """Retourne une réponse RAG complète : {answer, sources}."""
         logger.info("Requête /chat reçue : %s", question)
         embedding = await self._embed(question)
-        chunks = self._get_chunks(embedding, limit)
-        logger.debug("%d chunk(s) trouvé(s) pour la requête /chat", len(chunks))
 
-        rag_content = build_rag_message(question, chunks)
+        nearest_vectorized_chunks = self._get_nearest_vectorized_chunks(embedding, limit)
+        logger.debug("%d chunk(s) trouvé(s) pour la requête /chat (limite : %d): %s", len(nearest_vectorized_chunks), limit, [c.id for c in nearest_vectorized_chunks])
+
+        nearest_bm25_chunks = self._get_nearest_bm25_chunks(question, limit)
+        logger.debug("%d chunk(s) BM25 trouvé(s) pour la requête /chat (limite : %d): %s", len(nearest_bm25_chunks), limit, [c.id for c in nearest_bm25_chunks])
+
+        nearest_chunks = self._merge_scores(nearest_vectorized_chunks, nearest_bm25_chunks, limit)
+        logger.debug("%d chunk(s) fusionné(s) pour la requête /chat : %s", len(nearest_chunks), [c.id for c in nearest_chunks])
+
+        rag_content = self._build_rag_message(question, nearest_chunks)
         messages = self._build_messages(question, history, rag_content)
+    
+        answer = await asyncio.to_thread(self._chat, messages, False)
+        logger.info("Réponse /chat générée (%d caractères) : %s", len(answer), answer[:100] + "..." if len(answer) > 100 else answer)
 
-        answer = await asyncio.to_thread(chat, messages, False)
-        logger.info("Réponse /chat générée (%d caractères).", len(answer))
-
-        return {"answer": answer, "sources": self._build_sources(chunks)}
-
-    async def stream_answer(self, question: str, history: list, limit: int):
-        """Génère les événements SSE : sources, tokens successifs, puis l'historique final."""
-        logger.info("Requête /chat/stream reçue : %s", question)
-        embedding = await self._embed(question)
-        chunks = self._get_chunks(embedding, limit)
-        logger.debug("%d chunk(s) trouvé(s) pour la requête /chat/stream", len(chunks))
-
-        rag_content = build_rag_message(question, chunks)
-        messages = self._build_messages(question, history, rag_content)
-
-        yield {"type": "sources", "sources": self._build_sources(chunks)}
-
-        full_answer = ""
-        async for token in stream_chat(messages):
-            full_answer += token
-            yield {"type": "token", "content": token}
-
-        updated_history = [
-            {"role": m.role, "content": m.content} for m in history
-        ] + [
-            {"role": "user", "content": question},
-            {"role": "assistant", "content": full_answer},
-        ]
-        logger.info("Réponse /chat/stream terminée (%d caractères).", len(full_answer))
-        yield {"type": "done", "history": updated_history}
+        return {"answer": answer, "sources": self._build_sources(nearest_chunks)}
