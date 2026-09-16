@@ -34,9 +34,10 @@ database_url = URL.create(
     database=DATABASE_NAME,
 )
 
+engine = create_engine(database_url, echo=False)
+
 def get_session():
     """Crée un nouveau moteur et retourne une session SQLAlchemy."""
-    engine = create_engine(database_url, echo=False)
     Session = sessionmaker(bind=engine)
     return Session()
 
@@ -55,7 +56,6 @@ DEFAULT_MODELS = [
 
 def init_db():
     """Crée les extensions Postgres, les tables, l'index BM25 et sème les modèles par défaut."""
-    engine = create_engine(database_url, echo=True)
     with engine.connect() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         conn.commit()
