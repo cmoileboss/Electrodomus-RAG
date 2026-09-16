@@ -26,10 +26,26 @@ export async function ingestSingle(filepath) {
     return response.json();
 }
 
+export async function ingestUpload(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${baseURL}/documents/ingest-upload`, {
+        method: 'POST',
+        body: formData
+    });
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    return response.json();
+}
+
 export async function getDocuments() {
     const response = await fetch(`${baseURL}/documents/`);
     if (!response.ok) throw new Error(`API error: ${response.status}`);
     return response.json();
+}
+
+export async function deleteDocument(documentId) {
+    const response = await fetch(`${baseURL}/documents/${documentId}`, { method: 'DELETE' });
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
 }
 
 export async function getChunksCount() {
