@@ -56,13 +56,6 @@ DEFAULT_MODELS = [
 
 def init_db():
     """Crée les extensions Postgres, les tables, l'index BM25 et sème les modèles par défaut."""
-    with engine.connect() as conn:
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        conn.commit()
-        logger.info("Extension 'vector' créée avec succès.")
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_textsearch"))
-        conn.commit()
-        logger.info("Extension 'pg_textsearch' créée avec succès.")
     Base.metadata.create_all(engine)
     logger.info("Tables créées avec succès.")
     with engine.connect() as conn:

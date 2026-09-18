@@ -1,10 +1,9 @@
 """Accès aux données pour l'entité Chunk : CRUD, recherche vectorielle et recherche BM25."""
 
-from pgvector.sqlalchemy import Vector
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from database.models import Chunk
+from database.models import Chunk, ErrorCode, Model
 from logger import get_logger
 
 from dotenv import load_dotenv
@@ -73,11 +72,20 @@ class ChunkRepository:
         """Retourne le nombre total de chunks."""
         return self.session.query(Chunk).count()
 
-    def get_nearest(self, embedding: list[float]) -> list[Chunk]:
-        """Recherche les chunks les plus proches par similarité cosinus."""
+    def get_nearest(
+        self,
+        embedding: list[float],
+        model_id: int | None = None,
+        error_code: str | None = None,
+    ) -> list[Chunk]:
+        """Recherche les chunks les plus proches par similarité cosinus, filtrés par modèle et/ou code d'erreur."""
+        query = self.session.query(Chunk).filter(Chunk.embedding.isnot(None))
+        if model_id is not None:
+            query = query.join(Chunk.models).filter(Model.id == model_id)
+        if error_code is not None:
+            query = query.join(Chunk.error_codes).filter(ErrorCode.code == error_code)
         chunks = (
-            self.session.query(Chunk)
-            .filter(Chunk.embedding.isnot(None))
+            query
             .order_by(Chunk.embedding.cosine_distance(embedding))
             .limit(CHUNK_LIMIT_VECTORIAL)
             .all()
@@ -86,17 +94,26 @@ class ChunkRepository:
         logger.debug("%d chunk(s) trouvés par similarité cosinus : %s", len(chunks), chunk_ids)
         return chunks
 
-    def search_bm25(self, query: str) -> list[Chunk]:
-        """Recherche BM25 via pg_textsearch (index chunks_bm25_idx sur content), triée par pertinence."""
-        rows = self.session.execute(
-            text("""
-                SELECT id, content <@> to_bm25query(:query, 'chunks_bm25_idx') AS score
-                FROM chunks
-                ORDER BY score
-                LIMIT :limit
-            """),
-            {"query": query, "limit": CHUNK_LIMIT_BM25},
-        ).fetchall()
+    def search_bm25(
+        self,
+        query: str,
+        model_id: int | None = None,
+        error_code: str | None = None,
+    ) -> list[Chunk]:
+        """Recherche BM25 via pg_textsearch (index chunks_bm25_idx sur content), filtrée par modèle et/ou code d'erreur, triée par pertinence."""
+        joins = []
+        params = {"query": query, "limit": CHUNK_LIMIT_BM25}
+        if model_id is not None:
+            joins.append("JOIN chunk_model cm ON cm.chunk_id = chunks.id AND cm.model_id = :model_id")
+            params["model_id"] = model_id
+        if error_code is not None:
+            joins.append("JOIN chunk_error_code cec ON cec.chunk_id = chunks.id AND cec.error_code = :error_code")
+            params["error_code"] = error_code
+        sql = (
+            "SELECT chunks.id, chunks.content <@> to_bm25query(:query, 'chunks_bm25_idx') AS score "
+            "FROM chunks " + " ".join(joins) + " ORDER BY score LIMIT :limit"
+        )
+        rows = self.session.execute(text(sql), params).fetchall()
         if not rows:
             logger.debug("Aucun résultat BM25 pour la requête : %s", query)
             return []

@@ -49,3 +49,12 @@ class DocumentRepository:
         self.session.commit()
         logger.debug("Document %d supprimé", document_id)
         return True
+
+    def delete_all(self) -> int:
+        """Supprime tous les documents (et leurs chunks associés), retourne le nombre supprimé."""
+        documents = self.get_all()
+        for document in documents:
+            self.session.delete(document)
+        self.session.commit()
+        logger.debug("%d document(s) supprimé(s)", len(documents))
+        return len(documents)

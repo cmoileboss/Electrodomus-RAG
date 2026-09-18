@@ -2,7 +2,7 @@
 
 from sqlalchemy.orm import Session
 
-from database.models import Chunk, Model
+from database.models import Chunk, ErrorCode, Model
 from logger import get_logger
 
 logger = get_logger(__name__)
