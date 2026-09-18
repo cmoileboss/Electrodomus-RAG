@@ -1,7 +1,7 @@
 import "./chat.css";
 import { useRef, useState } from "react";
 import ChatBot from "../../components/chatbot/chatbot";
-import { deleteDocument, getChunksCount, getDocuments, ingestAll, ingestUpload } from "../../services/ChatService";
+import { deleteAllDocuments, deleteDocument, getChunksCount, getDocuments, ingestAll, ingestUpload } from "../../services/ChatService";
 
 export default function ChatPage() {
     const [ingesting, setIngesting] = useState(false);
@@ -12,6 +12,7 @@ export default function ChatPage() {
     const [documentsError, setDocumentsError] = useState(null);
     const [chunksCount, setChunksCount] = useState(null);
     const [deletingDocumentId, setDeletingDocumentId] = useState(null);
+    const [deletingAll, setDeletingAll] = useState(false);
     const fileInputRef = useRef(null);
 
     const handleIngestAll = () => {
@@ -64,6 +65,15 @@ export default function ChatPage() {
             .finally(() => setDeletingDocumentId(null));
     };
 
+    const handleDeleteAllDocuments = () => {
+        if (!window.confirm("Supprimer tous les documents et tous leurs chunks ?")) return;
+        setDeletingAll(true);
+        deleteAllDocuments()
+            .then(() => refreshDocuments())
+            .catch((e) => setDocumentsError(e.message))
+            .finally(() => setDeletingAll(false));
+    };
+
     return (
         <div className="chat-component">
             <div className="ingest-toolbar">
@@ -93,6 +103,15 @@ export default function ChatPage() {
                 <div className="documents-panel">
                     {chunksCount !== null && (
                         <span className="documents-chunks-count">Total de chunks : {chunksCount}</span>
+                    )}
+                    {documents.length > 0 && (
+                        <button
+                            className="documents-delete-all-button"
+                            onClick={handleDeleteAllDocuments}
+                            disabled={deletingAll}
+                        >
+                            {deletingAll ? "Suppression…" : "Supprimer tous les documents"}
+                        </button>
                     )}
                     {loadingDocuments && <span className="documents-status">Chargement…</span>}
                     {documentsError && <span className="documents-status error">{documentsError}</span>}

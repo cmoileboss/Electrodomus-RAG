@@ -8,6 +8,19 @@
     box-sizing: border-box;
 }
 
+.chat-filters {
+    display: flex;
+    gap: 10px;
+}
+
+.chat-filter-select {
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 14px;
+    background-color: white;
+}
+
 .messages-container {
     flex: 1;
     overflow-y: auto;
