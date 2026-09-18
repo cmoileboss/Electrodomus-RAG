@@ -19,7 +19,7 @@ EMBED_MODEL_ID = os.getenv("EMBED_MODEL_ID", "BAAI/bge-m3")
 HF_TOKEN = os.getenv("HF_TOKEN")
 MAX_TOKENS = int(os.getenv("MAX_TOKENS", 400))
 DOC_FOLDER = Path("Documentation_Electrodomus")
-SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".html"}
+SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".html", ".xlsx"}
 
 
 def build_doc_manager() -> DocManager:
