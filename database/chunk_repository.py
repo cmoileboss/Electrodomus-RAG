@@ -68,6 +68,25 @@ class ChunkRepository:
             .all()
         )
 
+    def get_by_chunk_index(self, chunk_index: int) -> list[Chunk]:
+        """Retourne, tous documents confondus, les chunks ayant l'index donné (ex. 0 pour le premier chunk)."""
+        return self.session.query(Chunk).filter_by(chunk_index=chunk_index).all()
+
+    def link_error_code(self, chunk_id: int, error_code: str) -> None:
+        """Associe un code d'erreur à un chunk (insertion directe, silencieuse si déjà liée).
+
+        La relation Chunk.error_codes est viewonly : plusieurs ErrorCode partageant le même code
+        collapsent sur la même ligne de chunk_error_code, donc l'écriture passe par ici plutôt
+        que par la collection ORM.
+        """
+        self.session.execute(
+            text(
+                "INSERT INTO chunk_error_code (chunk_id, error_code) "
+                "VALUES (:chunk_id, :error_code) ON CONFLICT DO NOTHING"
+            ),
+            {"chunk_id": chunk_id, "error_code": error_code},
+        )
+
     def count(self) -> int:
         """Retourne le nombre total de chunks."""
         return self.session.query(Chunk).count()

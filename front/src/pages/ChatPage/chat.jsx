@@ -19,7 +19,7 @@ export default function ChatPage() {
         setIngesting(true);
         setIngestMessage(null);
         ingestAll()
-            .then(() => setIngestMessage({ ok: true, text: "Ingestion complète terminée." }))
+            .then(() => setIngestMessage({ ok: true, text: "Ingestion démarrée en arrière-plan (traitement parallèle des documents)." }))
             .catch(() => setIngestMessage({ ok: false, text: "Erreur lors de l'ingestion." }))
             .finally(() => setIngesting(false));
     };

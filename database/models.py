@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Column, DateTime, ForeignKey, ForeignKeyConstraint, Integer, String, Table, Text
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, Text
 from sqlalchemy.orm import DeclarativeBase, relationship
 
 
@@ -20,18 +20,14 @@ chunk_model = Table(
     Column("model_id", Integer, ForeignKey("models.id", ondelete="CASCADE"), primary_key=True),
 )
 
-# Table d'association many-to-many entre chunks et error_codes (clé composite code+model_id)
+# Table d'association many-to-many entre chunks et error_codes.
+# error_code n'a pas de contrainte FK : le code seul n'est pas unique dans error_codes
+# (clé composite code+model_id), la jointure est donc définie explicitement sur les relations.
 chunk_error_code = Table(
     "chunk_error_code",
     Base.metadata,
     Column("chunk_id", Integer, ForeignKey("chunks.id", ondelete="CASCADE"), primary_key=True),
     Column("error_code", String, primary_key=True),
-    Column("model_id", Integer, primary_key=True),
-    ForeignKeyConstraint(
-        ["error_code", "model_id"],
-        ["error_codes.code", "error_codes.model_id"],
-        ondelete="CASCADE",
-    ),
 )
 
 class Document(Base):
@@ -64,7 +60,15 @@ class Chunk(Base):
 
     document = relationship("Document", back_populates="chunks")
     models = relationship("Model", secondary=chunk_model, back_populates="chunks")
-    error_codes = relationship("ErrorCode", secondary=chunk_error_code, back_populates="chunks")
+
+    error_codes = relationship(
+        "ErrorCode",
+        secondary=chunk_error_code,
+        primaryjoin="Chunk.id == chunk_error_code.c.chunk_id",
+        secondaryjoin="chunk_error_code.c.error_code == ErrorCode.code",
+        back_populates="chunks",
+        viewonly=True,
+    )
 
 
 class Model(Base):
@@ -91,4 +95,11 @@ class ErrorCode(Base):
     ass_intervention = Column(String, nullable=False)
 
     model = relationship("Model", back_populates="error_codes")
-    chunks = relationship("Chunk", secondary=chunk_error_code, back_populates="error_codes")
+    chunks = relationship(
+        "Chunk",
+        secondary=chunk_error_code,
+        primaryjoin="ErrorCode.code == chunk_error_code.c.error_code",
+        secondaryjoin="chunk_error_code.c.chunk_id == Chunk.id",
+        back_populates="error_codes",
+        viewonly=True,
+    )

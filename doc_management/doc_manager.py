@@ -15,7 +15,6 @@ from sentence_transformers import SentenceTransformer
 
 from sqlalchemy.orm import Session
 
-from database import model_repository
 from database.document_repository import DocumentRepository
 from database.chunk_repository import ChunkRepository
 from database.error_repository import ErrorRepository
@@ -33,7 +32,7 @@ class DocManager:
     """Convertit un fichier source en chunks nettoyés, contextualisés, encodés puis persistés."""
 
     def __init__(self, embed_model_id: str, hf_token: str, max_tokens: int):
-        logger.info(f"Initialisation du DocManager avec le modèle d'embedding : {embed_model_id}")
+        logger.info("Initialisation du DocManager avec le modèle d'embedding : %s (max_tokens=%d)", embed_model_id, max_tokens)
         tokenizer = HuggingFaceTokenizer(
             tokenizer=AutoTokenizer.from_pretrained(
                 embed_model_id,
@@ -41,6 +40,7 @@ class DocManager:
             ),
             max_tokens=max_tokens,
         )
+        logger.debug("Tokenizer HuggingFace chargé pour '%s'", embed_model_id)
 
         self.chunker = HybridChunker(
             tokenizer=tokenizer,
@@ -50,6 +50,7 @@ class DocManager:
         )
         self.model = SentenceTransformer(embed_model_id)
         self.converter = DocumentConverter()
+        logger.info("DocManager prêt.")
 
 
     def _clean_chunk(self, text: str) -> str:
@@ -74,18 +75,22 @@ class DocManager:
 
     @staticmethod
     def _process_errors_file(session: Session):
+        logger.info("Lecture du référentiel des codes d'erreur.")
         sheets = pd.read_excel(
             r"C:\Users\guillaume.pedrona\Documents\Projets\Electrodomus-RAG\Documentation_Electrodomus\Referentiel_codes_erreur.xlsx",
             sheet_name=None,
             header=3
         )
+        logger.debug("%d feuille(s) trouvée(s) dans le référentiel : %s", len(sheets), list(sheets.keys()))
 
         errors_repo = ErrorRepository(session)
         model_repo = ModelRepository(session)
 
+        created_count = 0
         for sheet_name, df in sheets.items():
+            logger.debug("Traitement de la feuille '%s' (%d ligne(s))", sheet_name, len(df))
             for index, row in df.iterrows():
-                print(f"Processing row {index} in sheet {sheet_name}")
+                logger.debug("Traitement de la ligne %d de la feuille '%s'", index, sheet_name)
                 code = row['Code']
                 signification = row['Signification']
                 client_behaviour = row['Conduite à tenir (client)']
@@ -106,11 +111,14 @@ class DocManager:
                         code=code,
                         model_id=model.id,
                     )
+                    created_count += 1
                 session.commit()
                 logger.info("Processed error code '%s' with models: %s", code, ", ".join(models_list))
+        logger.info("Référentiel des codes d'erreur traité : %d association(s) code/modèle créée(s).", created_count)
 
     def process_document(self, doc_source: str, session: Session):
         """Convertit, découpe, encode et persiste les chunks d'un document (créé s'il n'existe pas)."""
+        logger.info("Traitement du document demandé : %s", doc_source)
         path = Path(doc_source)
         filepath = str(path.resolve())
         title = path.stem
@@ -180,21 +188,21 @@ class DocManager:
                     matched_models.append(model)
                     seen_model_ids.add(model.id)
 
-            seen_error_keys = set()
-            for model in matched_models:
-                error_codes = self._search_errors_for_chunk(new_chunk.embedding_text, error_repo, model.id)
-                for code in error_codes:
-                    key = (code, model.id)
-                    if key in seen_error_keys:
-                        continue
-                    error = error_repo.get_by_id(code, model.id)
-                    if error:
-                        new_chunk.error_codes.append(error)
-                        seen_error_keys.add(key)
+            error_codes = self._search_errors_for_chunk(new_chunk.embedding_text, error_repo)
+            seen_codes = set()
+            for code in error_codes:
+                # chunk_error_code n'a plus de model_id : un même code ne peut être lié qu'une fois par chunk
+                if code in seen_codes:
+                    continue
+                chunk_repo.link_error_code(new_chunk.id, code)
+                seen_codes.add(code)
 
             db_chunks.append(new_chunk)
 
-            logger.debug("Ajout en BDD - Document '%s' Chunk %d : section='%s', page=%s", title, i, section, page)
+            logger.debug(
+                "Ajout en BDD - Document '%s' Chunk %d : section='%s', page=%s, model(s)=%s, error_code(s)=%s",
+                title, i, section, page, [m.name for m in matched_models], sorted(seen_codes),
+            )
 
         chunk_repo.bulk_create(db_chunks)
         session.commit()
@@ -203,6 +211,7 @@ class DocManager:
     def _search_models_for_chunk(self, embedding_text: str, model_repo: ModelRepository) -> list[str]:
         codes = model_repo.get_all()
         code_names = [code.name for code in codes]
+        logger.debug("Recherche de modèles parmi %d modèle(s) connu(s)", len(code_names))
 
         pattern = re.compile(
             "|".join(
@@ -221,11 +230,12 @@ class DocManager:
                 if match.group(f"code_{i}") is not None:
                     resultats.append(code_name)
                     break
+        logger.debug("%d modèle(s) détecté(s) : %s", len(resultats), resultats)
         return resultats
     
-    def _search_errors_for_chunk(self, embedding_text: str, error_repo: ErrorRepository, model_id: int) -> list[str]:
-        errors = error_repo.get_error_codes_by_model(model_id)
-        error_codes = [error.code for error in errors]
+    def _search_errors_for_chunk(self, embedding_text: str, error_repo: ErrorRepository) -> list[str]:
+        error_codes = error_repo.get_all_unique_codes()
+        logger.debug("Recherche de codes d'erreur parmi %d code(s) connu(s)", len(error_codes))
 
         pattern = re.compile(
             "|".join(
@@ -244,4 +254,5 @@ class DocManager:
                 if match.group(f"error_{i}") is not None:
                     resultats.append(error_code)
                     break
+        logger.debug("%d code(s) d'erreur détecté(s) : %s", len(resultats), resultats)
         return resultats

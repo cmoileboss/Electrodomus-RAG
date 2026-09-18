@@ -33,6 +33,10 @@ class ErrorRepository:
         """Retourne un code d'erreur par son code et son model_id, ou None si introuvable."""
         return self.session.get(ErrorCode, (code, model_id))
 
+    def get_by_code(self, code: str) -> ErrorCode | None:
+        """Retourne un code d'erreur par son code seul, indépendamment du modèle, ou None si introuvable."""
+        return self.session.query(ErrorCode).filter_by(code=code).first()
+
     def get_all(self) -> list[ErrorCode]:
         """Retourne tous les codes d'erreur."""
         return self.session.query(ErrorCode).all()

@@ -57,7 +57,7 @@ def process_all():
         logger.warning("Aucun fichier support\u00e9 trouv\u00e9 dans %s", DOC_FOLDER)
         return
     logger.info("Ingestion de %d fichier(s) depuis %s", len(files), DOC_FOLDER)
-    max_workers = min(4, len(files))
+    max_workers = min(12, len(files))
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(_process_file, f, doc_manager): f for f in files}
         for future in as_completed(futures):
