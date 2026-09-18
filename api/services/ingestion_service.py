@@ -1,3 +1,5 @@
+"""Service d'ingestion : déclenche la conversion, le découpage et l'indexation des documents."""
+
 from fastapi import BackgroundTasks
 
 from doc_management.chunks_storing import process_all, process_single
@@ -7,6 +9,8 @@ logger = get_logger(__name__)
 
 
 class IngestionService:
+    """Orchestration de l'ingestion de documents, unitaire ou en masse."""
+
     def ingest_single(self, filepath: str) -> None:
         """Convertit, découpe et indexe un document unique en base."""
         logger.info("Requête d'ingestion reçue pour '%s'", filepath)

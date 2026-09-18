@@ -34,22 +34,6 @@
     cursor: not-allowed;
 }
 
-.ingest-button.ingest-confirm {
-    background-color: #2e7d32;
-}
-
-.ingest-button.ingest-confirm:hover {
-    background-color: #1b5e20;
-}
-
-.ingest-path-input {
-    padding: 7px 10px;
-    border: 1px solid #aac;
-    border-radius: 6px;
-    font-size: 14px;
-    min-width: 280px;
-}
-
 .ingest-message {
     font-size: 13px;
     padding: 4px 8px;
@@ -102,6 +86,7 @@
 
 .documents-list-item {
     display: flex;
+    align-items: center;
     justify-content: space-between;
     gap: 12px;
     padding: 6px 8px;
@@ -117,9 +102,53 @@
 }
 
 .documents-list-path {
+    flex: 1;
     color: #777;
     font-size: 12px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.documents-delete-button {
+    flex-shrink: 0;
+    padding: 4px 10px;
+    background-color: #c62828;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.2s;
+}
+
+.documents-delete-button:hover {
+    background-color: #a01f1f;
+}
+
+.documents-delete-button:disabled {
+    background-color: #aaa;
+    cursor: not-allowed;
+}
+
+.documents-delete-all-button {
+    display: block;
+    margin-bottom: 8px;
+    padding: 6px 12px;
+    background-color: #c62828;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background-color 0.2s;
+}
+
+.documents-delete-all-button:hover {
+    background-color: #a01f1f;
+}
+
+.documents-delete-all-button:disabled {
+    background-color: #aaa;
+    cursor: not-allowed;
 }

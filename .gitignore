@@ -5,3 +5,4 @@ __pycache__
 *.pyc
 front/node_modules
 evaluation/results/
+testpandas.py

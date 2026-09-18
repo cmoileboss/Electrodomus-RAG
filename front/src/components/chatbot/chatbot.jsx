@@ -1,13 +1,28 @@
 import "./chatbot.css"
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { sendMessage } from "../../services/ChatService";
+import { getErrorCodes, getModels, sendMessage } from "../../services/ChatService";
 
 export default function ChatBot() {
     const [messages, setMessages] = useState([]);
     const [inputText, setInputText] = useState("");
     const [loadingAIResponse, setLoadingAIResponse] = useState(false);
     const [streamingContent, setStreamingContent] = useState("");
+    const [models, setModels] = useState([]);
+    const [errorCodes, setErrorCodes] = useState([]);
+    const [selectedModelId, setSelectedModelId] = useState("");
+    const [selectedErrorCode, setSelectedErrorCode] = useState("");
+
+    useEffect(() => {
+        getModels().then(setModels).catch(() => setModels([]));
+    }, []);
+
+    useEffect(() => {
+        setSelectedErrorCode("");
+        getErrorCodes(selectedModelId || null)
+            .then(setErrorCodes)
+            .catch(() => setErrorCodes([]));
+    }, [selectedModelId]);
 
     const handleSendMessage = async () => {
         if (loadingAIResponse || !inputText.trim()) return;
@@ -19,7 +34,12 @@ export default function ChatBot() {
         setMessages(prev => [...prev, { role: "user", content: question }]);
 
         try {
-            const { answer } = await sendMessage(question, history);
+            const { answer } = await sendMessage(
+                question,
+                history,
+                selectedModelId || null,
+                selectedErrorCode || null
+            );
             setMessages(prev => [...prev, { role: "assistant", content: answer }]);
         } catch (error) {
             console.error("Error sending message:", error);
@@ -35,6 +55,28 @@ export default function ChatBot() {
 
     return (
         <section className="chat">
+            <div className="chat-filters">
+                <select
+                    className="chat-filter-select"
+                    value={selectedModelId}
+                    onChange={(e) => setSelectedModelId(e.target.value)}
+                >
+                    <option value="">Tous les modèles</option>
+                    {models.map((m) => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                </select>
+                <select
+                    className="chat-filter-select"
+                    value={selectedErrorCode}
+                    onChange={(e) => setSelectedErrorCode(e.target.value)}
+                >
+                    <option value="">Tous les codes erreur</option>
+                    {errorCodes.map((e) => (
+                        <option key={e.code} value={e.code}>{e.code}</option>
+                    ))}
+                </select>
+            </div>
             <div className="messages-container">
                 {messages.length === 0 && !streamingContent && (
                     <div className="no-messages">Aucun message pour le moment. Commencez la conversation !</div>

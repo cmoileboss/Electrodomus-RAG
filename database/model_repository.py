@@ -1,16 +1,21 @@
+"""Accès aux données pour les modèles d'appareils et leurs associations avec les chunks."""
+
 from sqlalchemy.orm import Session
 
-from database.models import Chunk, Model
+from database.models import Chunk, ErrorCode, Model
 from logger import get_logger
 
 logger = get_logger(__name__)
 
 
 class ModelRepository:
+    """Opérations d'accès aux données pour l'entité Model."""
+
     def __init__(self, session: Session):
         self.session = session
 
     def create(self, name: str, type: str) -> Model:
+        """Crée et persiste un nouveau modèle."""
         model = Model(name=name, type=type)
         self.session.add(model)
         self.session.commit()
@@ -19,12 +24,15 @@ class ModelRepository:
         return model
 
     def get_by_id(self, model_id: int) -> Model | None:
+        """Retourne un modèle par son id, ou None si introuvable."""
         return self.session.get(Model, model_id)
 
     def get_by_name(self, name: str) -> Model | None:
+        """Retourne un modèle par son nom, ou None si introuvable."""
         return self.session.query(Model).filter_by(name=name).first()
 
     def get_all(self) -> list[Model]:
+        """Retourne tous les modèles."""
         return self.session.query(Model).all()
 
 
@@ -55,10 +63,12 @@ class ModelRepository:
         return True
 
     def get_chunks(self, model_id: int) -> list[Chunk]:
+        """Retourne les chunks associés à un modèle."""
         model = self.get_by_id(model_id)
         return model.chunks if model else []
 
     def delete(self, model_id: int) -> bool:
+        """Supprime un modèle, retourne True si la suppression a eu lieu."""
         model = self.get_by_id(model_id)
         if not model:
             logger.debug("Model %d introuvable pour suppression", model_id)

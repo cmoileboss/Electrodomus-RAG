@@ -1,3 +1,5 @@
+"""Configuration centralisée du logging : sortie console (INFO+) et fichier (DEBUG+)."""
+
 import logging
 import sys
 from pathlib import Path
@@ -6,6 +8,7 @@ LOG_FILE = Path(__file__).parent / "electrodomus.log"
 
 
 def get_logger(name: str) -> logging.Logger:
+    """Retourne un logger nommé configuré avec des handlers console et fichier (idempotent)."""
     logger = logging.getLogger(name)
 
     if logger.handlers:
