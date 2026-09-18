@@ -48,16 +48,20 @@ class ChatService:
         )
 
     @staticmethod
-    def _get_nearest_vectorized_chunks(embedding) -> list[Chunk]:
+    def _get_nearest_vectorized_chunks(
+        embedding, model_id: int | None = None, error_code: str | None = None
+    ) -> list[Chunk]:
         """Recherche les chunks les plus proches par similarité vectorielle (cosinus)."""
         with get_session() as session:
-            return ChunkRepository(session).get_nearest(embedding.tolist())
+            return ChunkRepository(session).get_nearest(embedding.tolist(), model_id=model_id, error_code=error_code)
 
     @staticmethod
-    def _get_nearest_bm25_chunks(question: str) -> list[Chunk]:
+    def _get_nearest_bm25_chunks(
+        question: str, model_id: int | None = None, error_code: str | None = None
+    ) -> list[Chunk]:
         """Recherche les chunks les plus pertinents par correspondance lexicale (BM25)."""
         with get_session() as session:
-            return ChunkRepository(session).search_bm25(question)
+            return ChunkRepository(session).search_bm25(question, model_id=model_id, error_code=error_code)
 
     @staticmethod
     def _chat(messages: list[dict], stream: bool = True) -> str:
@@ -149,15 +153,21 @@ class ChatService:
         ordered_ids = sorted(scores, key=scores.get, reverse=True)
         return [chunks_by_id[chunk_id] for chunk_id in ordered_ids[:CHUNK_LIMIT_RRF]]
     
-    async def ask(self, question: str, history: list) -> dict:
+    async def ask(
+        self,
+        question: str,
+        history: list,
+        model_id: int | None = None,
+        error_code: str | None = None,
+    ) -> dict:
         """Retourne une réponse RAG complète : {answer, sources}."""
-        logger.info("Requête /chat reçue : %s", question)
+        logger.info("Requête /chat reçue : %s (model_id=%s, error_code=%s)", question, model_id, error_code)
         embedding = await self._embed(question)
 
-        nearest_vectorized_chunks = self._get_nearest_vectorized_chunks(embedding)
+        nearest_vectorized_chunks = self._get_nearest_vectorized_chunks(embedding, model_id=model_id, error_code=error_code)
         logger.debug("%d chunk(s) trouvé(s) pour la requête /chat : %s", len(nearest_vectorized_chunks), [c.id for c in nearest_vectorized_chunks])
 
-        nearest_bm25_chunks = self._get_nearest_bm25_chunks(question)
+        nearest_bm25_chunks = self._get_nearest_bm25_chunks(question, model_id=model_id, error_code=error_code)
         logger.debug("%d chunk(s) BM25 trouvé(s) pour la requête /chat : %s", len(nearest_bm25_chunks), [c.id for c in nearest_bm25_chunks])
 
         nearest_rrf_chunks = self._reciprocal_rank_fusion(nearest_vectorized_chunks, nearest_bm25_chunks)

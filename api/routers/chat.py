@@ -24,6 +24,8 @@ class ChatRequest(BaseModel):
     question: str
     history: list[Message] = []
     limit: int = 5
+    model_id: int | None = None
+    error_code: str | None = None
 
 
 class ChatResponse(BaseModel):
@@ -44,7 +46,7 @@ def get_chat_service(request: Request) -> ChatService:
 @router.post("/chat", response_model=ChatResponse)
 async def ask(body: ChatRequest, chat_service: ChatService = Depends(get_chat_service)):
     """Retourne une réponse RAG complète à partir de la question et de l'historique."""
-    result = await chat_service.ask(body.question, body.history)
+    result = await chat_service.ask(body.question, body.history, model_id=body.model_id, error_code=body.error_code)
     updated_history = list(body.history) + [
         Message(role="user", content=body.question),
         Message(role="assistant", content=result["answer"]),

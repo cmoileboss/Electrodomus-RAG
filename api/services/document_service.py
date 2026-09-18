@@ -53,3 +53,9 @@ class DocumentService:
         else:
             logger.warning("Document %d introuvable pour suppression", document_id)
         return deleted
+
+    def delete_all(self) -> int:
+        """Supprime tous les documents, retourne le nombre supprimé."""
+        count = self.repository.delete_all()
+        logger.info("%d document(s) supprimé(s)", count)
+        return count

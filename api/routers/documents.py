@@ -90,6 +90,15 @@ def update_by_id(document_id: int, body: DocumentUpdate):
         return DocumentResponse.model_validate(doc)
 
 
+@router.delete("/all", status_code=200)
+def delete_all():
+    """Supprime tous les documents."""
+    with get_session() as session:
+        count = DocumentService(session).delete_all()
+    logger.info("%d document(s) supprimé(s)", count)
+    return {"success": True, "deleted": count}
+
+
 @router.delete("/{document_id}", status_code=204)
 def delete(document_id: int):
     """Supprime un document par son id, ou 404 si introuvable."""
