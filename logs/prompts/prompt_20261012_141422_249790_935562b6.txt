@@ -1,0 +1,199 @@
+[SYSTEM]
+
+Tu es un assistant technique expert pour la marque Electrodomus, spécialisé dans le dépannage,
+l'installation et l'entretien des appareils électroménagers (fours, lave-linge, lave-vaisselle).
+
+Règles absolues :
+- Réponds UNIQUEMENT à partir des extraits de documentation fournis dans le CONTEXTE.
+- Si la réponse ne figure pas dans le contexte, réponds exactement :
+  "Je n'ai pas trouvé cette information dans la documentation Electrodomus."
+- Ne complète jamais avec tes connaissances générales.
+- Cite TOUJOURS la source (section / page) entre parenthèses après chaque information.
+- Si plusieurs extraits se contredisent, privilégie les informations les plus récentes.
+- Réponds en français, de façon claire, structurée et concise.
+
+
+--------------------------------------------------------------------------------
+
+[USER]
+
+Comment régler l'erreur E01 du modèle WX-450 ?
+
+--------------------------------------------------------------------------------
+
+[ASSISTANT]
+
+**Réglage de l’erreur E01 sur le WX‑450**
+
+1. **Vérifier le joint de la porte**  
+   - S’assurer qu’aucun linge ou objet ne soit coincé dans le joint.  
+
+2. **Fermer correctement la porte**  
+   - Refermer fermement la porte jusqu’au clic.  
+
+3. **Relancer le programme**  
+   - Redémarrer le cycle de lavage.  
+
+4. **Si le code persiste**  
+   - Le verrou de la porte doit être contrôlé par un technicien (pièce 44‑0812).  
+
+*(Source : « E01, Conduite à tenir (client) » – chunk 1165, document 85)*  
+
+--------------------------------------------------------------------------------
+
+[USER]
+
+Comment régler l'erreur E01 du modèle WX-450 ?
+
+--------------------------------------------------------------------------------
+
+[ASSISTANT]
+
+**Réglage de l’erreur E01 sur le WX‑450**
+
+1. **Signification du code**  
+   - E01 indique une porte mal verrouillée. (source : chunk 1165, document 85)
+
+2. **Conduite à tenir (client)**  
+   - Vérifier qu’aucun linge n’est coincé dans le joint.  
+   - Refermer fermement la porte jusqu’au verrouillage.  
+   - Relancer le programme de lavage. (source : chunk 1165, document 85)
+
+3. **Si le code persiste**  
+   - Faire intervenir un technicien : contrôler le verrou de la porte (pièce 44‑0812). (source : chunk 1165, document 85)  
+
+--------------------------------------------------------------------------------
+
+[USER]
+
+Comment régler l'erreur E01 du modèle WX-450 ?
+
+--------------------------------------------------------------------------------
+
+[ASSISTANT]
+
+**Réglage de l’erreur E01 sur le WX‑450**
+
+1. **Vérifier le joint de la porte**  
+   - S’assurer qu’aucun linge n’est coincé dans le joint.  
+
+2. **Fermer correctement la porte**  
+   - Refermer fermement la porte jusqu’au verrouillage.  
+
+3. **Relancer le programme**  
+   - Redémarrer le cycle de lavage.  
+
+4. **Si le code persiste**  
+   - Faire intervenir le service après‑vente : le verrou de la porte doit être contrôlé (pièce 44‑0812).  
+
+*(Sources : chunk 1165, document 85 – « E01, Conduite à tenir (client) » ; chunk 1165, document 85 – « E01, Intervention SAV (technicien) »)*
+
+--------------------------------------------------------------------------------
+
+[USER]
+
+Comment régler l'erreur toto du modèle WX-450 ?
+
+--------------------------------------------------------------------------------
+
+[ASSISTANT]
+
+Je n'ai pas trouvé cette information dans la documentation Electrodomus.
+
+--------------------------------------------------------------------------------
+
+[USER]
+
+Comment régler l'erreur E01 du modèle WX-450 ?
+
+--------------------------------------------------------------------------------
+
+[ASSISTANT]
+
+**Réglage de l’erreur E01 (porte mal verrouillée) sur le WX‑450**
+
+1. **Vérifier le joint de la porte**  
+   - S’assurer qu’aucun linge n’est coincé dans le joint.  
+
+2. **Refermer correctement la porte**  
+   - Fermer fermement la porte jusqu’au verrouillage.  
+
+3. **Relancer le programme**  
+   - Redémarrer le cycle de lavage.  
+
+4. **Si le code persiste**  
+   - Faire intervenir le SAV : le verrou de la porte doit être contrôlé (pièce 44‑0812).  
+
+*(Source : chunk 1165, document 85 – « E01, Conduite à tenir (client) » et « E01, Intervention SAV (technicien) »)  
+
+--------------------------------------------------------------------------------
+
+[USER]
+
+Comment régler l'erreur toto du modèle WX-450 ?
+
+--------------------------------------------------------------------------------
+
+[ASSISTANT]
+
+Je n'ai pas trouvé cette information dans la documentation Electrodomus.
+
+--------------------------------------------------------------------------------
+
+[USER]
+
+CONTEXTE :
+[Source : chunk 936, document 64, 9. Codes erreur, page 7]
+En cas d'anomalie détectée par l'électronique, l'afficheur du WX-350 indique un code erreur. Le tableau ci-dessous liste les codes propres à ce modèle et la conduite à tenir. Attention : la signification d'un code erreur dépend du modèle d'appareil ; ne vous référez jamais au manuel d'un autre produit, même de la marque Electrodomus.
+E01, Signification = Porte mal verrouillée. E01, Que faire ? = Vérifier qu'aucun linge n'est
+
+---
+
+[Source : chunk 968, document 63, 9. Codes erreur, page 7]
+En cas d'anomalie détectée par l'électronique, l'afficheur du WX-300 indique un code erreur. Le tableau ci-dessous liste les codes propres à ce modèle et la conduite à tenir. Attention : la signification d'un code erreur dépend du modèle d'appareil ; ne vous référez jamais au manuel d'un autre produit, même de la marque Electrodomus.
+E01, Signification = Porte mal verrouillée. E01, Que faire ? = Vérifier qu'aucun linge n'est
+
+---
+
+[Source : chunk 880, document 57, 10. Codes erreur, page 6]
+En cas d'anomalie détectée par l'électronique, l'afficheur du LV-100 indique un code erreur. Le tableau ci-dessous liste les codes propres à ce modèle et la conduite à tenir. Attention : la signification d'un code erreur dépend du modèle d'appareil ; ne vous référez jamais au manuel d'un autre produit, même de la marque Electrodomus.
+E01, Signification = Porte mal fermée. E01, Que faire ? = Refermer la porte jusqu'au clic. Vérifier qu'aucun ustensile ne dépasse des paniers.. E10, Signification = Défaut de remplissage en eau. E10, Que faire ? = Vérifier que le robinet est ouvert et que le tuyau n'est
+
+---
+
+[Source : chunk 1001, document 68, 9. Codes erreur, page 8]
+En cas d'anomalie détectée par l'électronique, l'afficheur du WX-550 indique un code erreur. Le tableau ci-dessous liste les codes propres à ce modèle et la conduite à tenir. Attention : la signification d'un code erreur dépend du modèle d'appareil ; ne vous référez jamais au manuel d'un autre produit, même de la marque Electrodomus.
+E01, Signification = Porte mal verrouillée. E01, Que faire ? = Vérifier qu'aucun linge n'est coincé dans le joint, refermer fermement la porte et relancer le programme.. E10, Signification = Pression d'arrivée d'eau insuffisante. E10, Que faire ? = Vérifier que le robinet est ouvert a fond et que le tuyau d'arrivée n'est pas plie. Nettoyer le filtre d'entree situe au raccord du tuyau.. E20, Signification = Vidange trop lente. E20, Que faire ? = Nettoyer le filtre de vidange (voir chapitre Entretien) et verifier que le tuyau d'évacuation n'est pas obstrué ni place a plus de 1 m de hauteur.. E23, Signification = Défaut de la pompe de vidange. E23, Que faire ? = Nettoyer le filtre de vidange puis relancer un programme Vidange seule. Si le code
+
+---
+
+[Source : chunk 1095, document 67, 9. Codes erreur, page 8]
+En cas d'anomalie détectée par l'électronique, l'afficheur du WX-500 indique un code erreur. Le tableau ci-dessous liste les codes propres à ce modèle et la conduite à tenir. Attention : la signification d'un code erreur dépend du modèle d'appareil ; ne vous référez jamais au manuel d'un autre produit, même de la marque Electrodomus.
+E01, Signification = Porte mal verrouillée. E01, Que faire ? = Vérifier qu'aucun linge n'est coincé dans le joint, refermer fermement la porte et relancer le programme.. E10, Signification = Pression d'arrivée d'eau insuffisante. E10, Que faire ? = Vérifier que le robinet est ouvert a fond et que le tuyau d'arrivée n'est pas plie. Nettoyer le filtre d'entree situe au raccord du tuyau.. E20, Signification = Vidange trop lente. E20, Que faire ? = Nettoyer le filtre de vidange (voir chapitre Entretien) et verifier que le tuyau d'évacuation n'est pas obstrué ni place a plus de 1 m de hauteur.. E23, Signification = Défaut de la pompe de vidange. E23, Que faire ? = Nettoyer le filtre de vidange puis relancer un programme Vidange seule. Si le code
+
+---
+
+[Source : chunk 1062, document 65, 9. Codes erreur, page 8]
+En cas d'anomalie détectée par l'électronique, l'afficheur du WX-400 indique un code erreur. Le tableau ci-dessous liste les codes propres à ce modèle et la conduite à tenir. Attention : la signification d'un code erreur dépend du modèle d'appareil ; ne vous référez jamais au manuel d'un autre produit, même de la marque Electrodomus.
+
+---
+
+[Source : chunk 722, document 59, 10. Codes erreur, page 7]
+E01, Signification = Porte mal fermée. E01, Que faire ? = Refermer la porte jusqu'au clic. Vérifier qu'aucun ustensile ne dépasse des paniers.. E10, Signification = Défaut de remplissage en eau. E10, Que faire ? = Vérifier que le robinet est ouvert et que le tuyau n'est pas plie. Sur les modeles AquaStop, verifier le voyant du boîtier au robinet.. E15, Signification = Fuite détectée dans le socle (sécurité anti-fuite). E15, Que faire ? = Fermer le robinet d'arrivée d'eau et contacter le SAV. Ne pas relancer l'appareil.. E23, Signification = Sonde de température défectueuse. E23, Que faire ? = Contacter le SAV. Le lavage a température élevée est indisponible en attendant l'intervention.. E30, Signification = Bras d'aspersion bloqué. E30, Que faire ? = Vérifier qu'aucun ustensile ne bloqué la rotation des bras. Retirer et rincer les bras d'aspersion.. E42, Signification = Défaut de chauffage de l'eau. E42, Que faire ? = Contacter le SAV.. E51, Signification = Défaut de la pompe de cyclage. E51, Que faire ? = Débrancher l'appareil 10 minutes puis relancer. Si le code réapparaît, contacter le SAV.
+
+---
+
+[Source : chunk 822, document 61, 10. Codes erreur, page 7]
+E01, Signification = Porte mal fermée. E01, Que faire ? = Refermer la porte jusqu'au clic. Vérifier qu'aucun ustensile ne dépasse des paniers.. E10, Signification = Défaut de remplissage en eau. E10, Que faire ? = Vérifier que le robinet est ouvert et que le tuyau n'est pas plie. Sur les modeles AquaStop, verifier le voyant du boîtier au robinet.. E15, Signification = Fuite détectée dans le socle (sécurité anti-fuite). E15, Que faire ? = Fermer le robinet d'arrivée d'eau et contacter le SAV. Ne pas relancer l'appareil.. E23, Signification = Sonde de température défectueuse. E23, Que faire ? = Contacter le SAV. Le lavage a température élevée est indisponible en attendant l'intervention.. E30, Signification = Bras d'aspersion bloqué. E30, Que faire ? = Vérifier qu'aucun ustensile ne bloqué la rotation des bras. Retirer et rincer les bras d'aspersion.. E42, Signification = Défaut de chauffage de l'eau. E42, Que faire ? = Contacter le SAV.. E51, Signification = Défaut de la pompe de cyclage. E51, Que faire ? = Débrancher l'appareil 10 minutes puis relancer. Si le code réapparaît, contacter le SAV.
+
+---
+
+[Source : chunk 797, document 60, 10. Codes erreur, page 7]
+E01, Signification = Porte mal fermée. E01, Que faire ? = Refermer la porte jusqu'au clic. Vérifier qu'aucun ustensile ne dépasse des paniers.. E10, Signification = Défaut de remplissage en eau. E10, Que faire ? = Vérifier que le robinet est ouvert et que le tuyau n'est pas plie. Sur les modeles AquaStop, verifier le voyant du boîtier au robinet.. E15, Signification = Fuite détectée dans le socle (sécurité anti-fuite). E15, Que faire ? = Fermer le robinet d'arrivée d'eau et contacter le SAV. Ne pas relancer l'appareil.. E23, Signification = Sonde de température défectueuse. E23, Que faire ? = Contacter le SAV. Le lavage a température élevée est indisponible en attendant l'intervention.. E30, Signification = Bras d'aspersion bloqué. E30, Que faire ? = Vérifier qu'aucun ustensile ne bloqué la rotation des bras. Retirer et rincer les bras d'aspersion.. E42, Signification = Défaut de chauffage de l'eau. E42, Que faire ? = Contacter le SAV.. E51, Signification = Défaut de la pompe de cyclage. E51, Que faire ? = Débrancher l'appareil 10 minutes puis relancer. Si le code réapparaît, contacter le SAV.
+
+---
+
+[Source : chunk 731, document 58, 10. Codes erreur, page 7]
+E01, Signification = Porte mal fermée. E01, Que faire ? = Refermer la porte jusqu'au clic. Vérifier qu'aucun ustensile ne dépasse des paniers.. E10, Signification = Défaut de remplissage en eau. E10, Que faire ? = Vérifier que le robinet est ouvert et que le tuyau n'est pas plie. Sur les modeles AquaStop, verifier le voyant du boîtier au robinet.. E15, Signification = Fuite détectée dans le socle (sécurité anti-fuite). E15, Que faire ? = Fermer le robinet d'arrivée d'eau et contacter le SAV. Ne pas relancer l'appareil.. E23, Signification = Sonde de température défectueuse. E23, Que faire ? = Contacter le SAV. Le lavage a température élevée est indisponible en attendant l'intervention.. E30, Signification = Bras d'aspersion bloqué. E30, Que faire ? = Vérifier qu'aucun ustensile ne bloqué la rotation des bras. Retirer et rincer les bras d'aspersion.. E42, Signification = Défaut de chauffage de l'eau. E42, Que faire ? = Contacter le SAV.. E51, Signification = Défaut de la pompe de cyclage. E51, Que faire ? = Débrancher l'appareil 10 minutes puis relancer. Si le code réapparaît, contacter le SAV.
+
+QUESTION : Comment régler l'erreur E01 du modèle WX-1450 ?

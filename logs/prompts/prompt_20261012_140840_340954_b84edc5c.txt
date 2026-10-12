@@ -1,0 +1,75 @@
+[SYSTEM]
+
+Tu es un assistant technique expert pour la marque Electrodomus, spécialisé dans le dépannage,
+l'installation et l'entretien des appareils électroménagers (fours, lave-linge, lave-vaisselle).
+
+Règles absolues :
+- Réponds UNIQUEMENT à partir des extraits de documentation fournis dans le CONTEXTE.
+- Si la réponse ne figure pas dans le contexte, réponds exactement :
+  "Je n'ai pas trouvé cette information dans la documentation Electrodomus."
+- Ne complète jamais avec tes connaissances générales.
+- Cite TOUJOURS la source (section / page) entre parenthèses après chaque information.
+- Si plusieurs extraits se contredisent, privilégie les informations les plus récentes.
+- Réponds en français, de façon claire, structurée et concise.
+
+
+--------------------------------------------------------------------------------
+
+[USER]
+
+CONTEXTE :
+[Source : chunk 936, document 64, 9. Codes erreur, page 7]
+En cas d'anomalie détectée par l'électronique, l'afficheur du WX-350 indique un code erreur. Le tableau ci-dessous liste les codes propres à ce modèle et la conduite à tenir. Attention : la signification d'un code erreur dépend du modèle d'appareil ; ne vous référez jamais au manuel d'un autre produit, même de la marque Electrodomus.
+E01, Signification = Porte mal verrouillée. E01, Que faire ? = Vérifier qu'aucun linge n'est
+
+---
+
+[Source : chunk 1031, document 66, 9. Codes erreur, page 8]
+En cas d'anomalie détectée par l'électronique, l'afficheur du WX-450 indique un code erreur. Le tableau ci-dessous liste les codes propres à ce modèle et la conduite à tenir. Attention : la signification d'un code erreur dépend du modèle d'appareil ; ne vous référez jamais au manuel d'un autre produit, même de la marque Electrodomus.
+
+---
+
+[Source : chunk 968, document 63, 9. Codes erreur, page 7]
+En cas d'anomalie détectée par l'électronique, l'afficheur du WX-300 indique un code erreur. Le tableau ci-dessous liste les codes propres à ce modèle et la conduite à tenir. Attention : la signification d'un code erreur dépend du modèle d'appareil ; ne vous référez jamais au manuel d'un autre produit, même de la marque Electrodomus.
+E01, Signification = Porte mal verrouillée. E01, Que faire ? = Vérifier qu'aucun linge n'est
+
+---
+
+[Source : chunk 1001, document 68, 9. Codes erreur, page 8]
+En cas d'anomalie détectée par l'électronique, l'afficheur du WX-550 indique un code erreur. Le tableau ci-dessous liste les codes propres à ce modèle et la conduite à tenir. Attention : la signification d'un code erreur dépend du modèle d'appareil ; ne vous référez jamais au manuel d'un autre produit, même de la marque Electrodomus.
+E01, Signification = Porte mal verrouillée. E01, Que faire ? = Vérifier qu'aucun linge n'est coincé dans le joint, refermer fermement la porte et relancer le programme.. E10, Signification = Pression d'arrivée d'eau insuffisante. E10, Que faire ? = Vérifier que le robinet est ouvert a fond et que le tuyau d'arrivée n'est pas plie. Nettoyer le filtre d'entree situe au raccord du tuyau.. E20, Signification = Vidange trop lente. E20, Que faire ? = Nettoyer le filtre de vidange (voir chapitre Entretien) et verifier que le tuyau d'évacuation n'est pas obstrué ni place a plus de 1 m de hauteur.. E23, Signification = Défaut de la pompe de vidange. E23, Que faire ? = Nettoyer le filtre de vidange puis relancer un programme Vidange seule. Si le code
+
+---
+
+[Source : chunk 1033, document 66, 9. Codes erreur, page 9]
+E60, 1 = Défaut de communication carte electronique. E60, 2 = Débrancher l'appareil 10 minutes puis relancer. Si le code réapparaît, contacter le SAV.
+Si le code persiste après les vérifications indiquées, contactez le service après-vente muni du code affiché, de la référence du modèle (WX-450) et du numéro de série (étiquette sur le pourtour du hublot).
+
+---
+
+[Source : chunk 588, document 51, Extension constructeur - moteur à induction, page 1]
+Les modèles WX-400, WX-450, WX-500 et WX-550 sont équipés d'un moteur à induction à entraînement direct. Ce moteur bénéficie d'une extension de garantie constructeur de 10 ans (pièces) à compter de la date d'achat. L'extension couvre le moteur lui-même (stator, rotor). Elle ne couvre ni la carte de puissance, ni la main-d'œuvre ni le déplacement au-delà de la période de garantie légale. Les modèles WX-300 et WX-350, équipés d'un moteur standard à charbons, ne sont pas concernés (les charbons sont des pièces d'usure). Les conditions d'éligibilité aux extensions constructeur, notamment les modalités d'enregistrement du produit, sont définies dans les Conditions Générales de Vente.
+
+---
+
+[Source : chunk 1165, document 85, inconnue, page 1]
+E01, Signification = Porte mal verrouillée. E01, Conduite à tenir (client) = Vérifier qu'aucun linge n'est coincé dans le joint, refermer fermement la porte et relancer le programme.. E01, Intervention SAV (technicien) = Si persistant : verrou de porte a contrôler (pièce 44-0812).. E01, Modèles concernés = WX-300, WX-350, WX-400, WX-450, WX-500, WX-550. E10, Signification = Pression d'arrivée d'eau insuffisante. E10, Conduite à tenir (client) = Vérifier que le robinet est ouvert a fond et que le tuyau d'arrivée n'est pas plie. Nettoyer le filtre d'entree situe au raccord du tuyau.. E10, Intervention SAV (technicien) = Contrôler l'électrovanne d'admission (pièce 44-1103).. E10, Modèles concernés = WX-300, WX-350, WX-400, WX-450, WX-500, WX-550. E20, Signification = Vidange trop lente. E20, Conduite à tenir (client) = Nettoyer le filtre de vidange (voir chapitre Entretien) et verifier que le tuyau d'évacuation n'est pas obstrué ni place a plus de 1 m de hauteur.. E20, Intervention SAV (technicien) = Contrôler la durite cuve-pompe.. E20, Modèles concernés = WX-300, WX-350, WX-400, WX-450, WX-500, WX-550. E23,
+
+---
+
+[Source : chunk 1095, document 67, 9. Codes erreur, page 8]
+En cas d'anomalie détectée par l'électronique, l'afficheur du WX-500 indique un code erreur. Le tableau ci-dessous liste les codes propres à ce modèle et la conduite à tenir. Attention : la signification d'un code erreur dépend du modèle d'appareil ; ne vous référez jamais au manuel d'un autre produit, même de la marque Electrodomus.
+E01, Signification = Porte mal verrouillée. E01, Que faire ? = Vérifier qu'aucun linge n'est coincé dans le joint, refermer fermement la porte et relancer le programme.. E10, Signification = Pression d'arrivée d'eau insuffisante. E10, Que faire ? = Vérifier que le robinet est ouvert a fond et que le tuyau d'arrivée n'est pas plie. Nettoyer le filtre d'entree situe au raccord du tuyau.. E20, Signification = Vidange trop lente. E20, Que faire ? = Nettoyer le filtre de vidange (voir chapitre Entretien) et verifier que le tuyau d'évacuation n'est pas obstrué ni place a plus de 1 m de hauteur.. E23, Signification = Défaut de la pompe de vidange. E23, Que faire ? = Nettoyer le filtre de vidange puis relancer un programme Vidange seule. Si le code
+
+---
+
+[Source : chunk 589, document 51, Extension constructeur - système AquaStop, page 1]
+Les modèles WX-450, WX-500 et WX-550 sont équipés du système anti-fuite AquaStop. Système AquaStop garanti pendant toute la durée de vie de l'appareil (dégâts des eaux causés par une défaillance du boîtier AquaStop) sur les modèles de la gamme WX qui en sont équipés.
+
+---
+
+[Source : chunk 880, document 57, 10. Codes erreur, page 6]
+En cas d'anomalie détectée par l'électronique, l'afficheur du LV-100 indique un code erreur. Le tableau ci-dessous liste les codes propres à ce modèle et la conduite à tenir. Attention : la signification d'un code erreur dépend du modèle d'appareil ; ne vous référez jamais au manuel d'un autre produit, même de la marque Electrodomus.
+E01, Signification = Porte mal fermée. E01, Que faire ? = Refermer la porte jusqu'au clic. Vérifier qu'aucun ustensile ne dépasse des paniers.. E10, Signification = Défaut de remplissage en eau. E10, Que faire ? = Vérifier que le robinet est ouvert et que le tuyau n'est
+
+QUESTION : Comment régler l'erreur E01 du modèle WX-450 ?

@@ -12,7 +12,7 @@ import os
 load_dotenv()
 
 CHUNK_LIMIT_VECTORIAL = int(os.getenv("CHUNK_LIMIT_VECTORIAL", "30"))
-CHUNK_LIMIT_BM25 = int(os.getenv("CHUNK_NB_LIMIT", "30"))
+CHUNK_LIMIT_BM25 = int(os.getenv("CHUNK_LIMIT_BM25", "30"))
 
 logger = get_logger(__name__)
 

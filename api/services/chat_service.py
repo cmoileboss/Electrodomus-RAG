@@ -4,6 +4,9 @@ import asyncio
 import os
 import json
 import requests
+from datetime import datetime, timezone
+from pathlib import Path
+from uuid import uuid4
 
 from database.chunk_repository import ChunkRepository
 from database.database import get_session
@@ -16,6 +19,8 @@ logger = get_logger(__name__)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_URL = os.getenv("GROQ_URL", "https://api.groq.com/openai/v1/chat/completions")
 MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+PROMPT_LOG_DIR = Path("logs/prompts")
+RESPONSE_LOG_DIR = Path("logs/responses")
 
 CHUNK_LIMIT_RRF = int(os.getenv("CHUNK_LIMIT_RRF", "10"))
 CHUNK_LIMIT_CROSS_ENCODER = int(os.getenv("CHUNK_LIMIT_CROSS_ENCODER", "10"))
@@ -31,9 +36,37 @@ Règles absolues :
   "Je n'ai pas trouvé cette information dans la documentation Electrodomus."
 - Ne complète jamais avec tes connaissances générales.
 - Cite TOUJOURS la source (section / page) entre parenthèses après chaque information.
-- Si plusieurs extraits se contredisent, signale la contradiction.
+- Si plusieurs extraits se contredisent, privilégie les informations les plus récentes.
 - Réponds en français, de façon claire, structurée et concise.
+- Utilise du Markdown standard : chaque ligne d'un tableau doit être sur sa propre ligne.
+- N'utilise pas de balises HTML (notamment <br>) ; dans un tableau, garde les cellules concises ou préfère une liste si le contenu est détaillé.
 """
+
+
+def _write_prompt_to_file(messages: list[dict]) -> Path:
+    """Écrit uniquement les rôles et contenus du prompt dans un fichier lisible."""
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
+    filename = f"prompt_{timestamp}_{uuid4().hex[:8]}.txt"
+    prompt_path = PROMPT_LOG_DIR / filename
+    prompt_path.parent.mkdir(parents=True, exist_ok=True)
+
+    sections = []
+    for message in messages:
+        sections.append(f"[{message['role'].upper()}]\n\n{message['content']}")
+
+    prompt_path.write_text(("\n\n" + "-" * 80 + "\n\n").join(sections) + "\n", encoding="utf-8")
+    return prompt_path
+
+
+def _write_response_to_file(response: str) -> Path:
+    """Écrit le texte brut de la réponse du LLM dans un fichier distinct."""
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
+    filename = f"response_{timestamp}_{uuid4().hex[:8]}.txt"
+    response_path = RESPONSE_LOG_DIR / filename
+    response_path.parent.mkdir(parents=True, exist_ok=True)
+    response_path.write_text(response, encoding="utf-8")
+    return response_path
+
 
 class ChatService:
     """Orchestre le pipeline RAG : recherche de contexte pertinent puis génération de réponse."""
@@ -204,8 +237,12 @@ class ChatService:
 
         rag_content = self._build_rag_message(question, reranked_nearest_chunks)
         full_message = self._build_messages(question, history, rag_content)
-        print(full_message)
+        prompt_path = _write_prompt_to_file(full_message)
+        logger.debug("Prompt envoyé au LLM écrit dans %s", prompt_path)
+        logger.debug("Prompt complet : %s", full_message)
         answer = await asyncio.to_thread(self._chat, full_message, False)
+        response_path = _write_response_to_file(answer)
+        logger.debug("Réponse du LLM enregistrée dans %s", response_path)
         logger.info("Réponse /chat générée (%d caractères) : %s", len(answer), answer[:100] + "..." if len(answer) > 100 else answer)
 
         return {"answer": answer, "sources": self._build_sources(reranked_nearest_chunks)}

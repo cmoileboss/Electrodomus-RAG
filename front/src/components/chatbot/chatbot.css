@@ -64,8 +64,8 @@
     margin-bottom: 10px;
     border-radius: 8px;
     max-width: 70%;
-    overflow-wrap: break-word;
-    word-break: break-all;
+    overflow-wrap: anywhere;
+    word-break: normal;
 }
 
 .message.user {
@@ -78,6 +78,46 @@
 .message.assistant {
     background-color: #e9ecef;
     color: #333;
+    max-width: min(90%, 1100px);
+}
+
+.message > :first-child {
+    margin-top: 0;
+}
+
+.message > :last-child {
+    margin-bottom: 0;
+}
+
+.message table {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+}
+
+.message th,
+.message td {
+    padding: 8px 10px;
+    border: 1px solid #cbd2d9;
+    text-align: left;
+    vertical-align: top;
+}
+
+.message th {
+    background-color: #dce2e8;
+    white-space: nowrap;
+}
+
+.message th:first-child,
+.message td:first-child {
+    white-space: nowrap;
+}
+
+.message th:last-child,
+.message td:last-child {
+    white-space: nowrap;
 }
 
 .input-container {

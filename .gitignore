@@ -1,6 +1,7 @@
 Documentation_Electrodomus
 .env
 *.log
+logs/responses/
 __pycache__
 *.pyc
 front/node_modules

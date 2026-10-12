@@ -1,7 +1,26 @@
 import "./chatbot.css"
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { getErrorCodes, getModels, sendMessage } from "../../services/ChatService";
+
+function remarkBrTags() {
+    return (tree) => {
+        const convertBreakTags = (node) => {
+            if (!Array.isArray(node.children)) return;
+            node.children = node.children.flatMap((child) => {
+                if (child.type === "html" && /^<br\s*\/?>$/i.test(child.value.trim())) {
+                    return [{ type: "break" }];
+                }
+                convertBreakTags(child);
+                return [child];
+            });
+        };
+        convertBreakTags(tree);
+    };
+}
+
+const markdownPlugins = [remarkGfm, remarkBrTags];
 
 export default function ChatBot() {
     const [messages, setMessages] = useState([]);
@@ -86,12 +105,12 @@ export default function ChatBot() {
                 )}
                 {messages.map((msg, index) => (
                     <div key={index} className={`message ${msg.role}`}>
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={markdownPlugins}>{msg.content}</ReactMarkdown>
                     </div>
                 ))}
                 {streamingContent && (
                     <div className="message assistant">
-                        <ReactMarkdown>{streamingContent}</ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={markdownPlugins}>{streamingContent}</ReactMarkdown>
                     </div>
                 )}
                 {loadingAIResponse && !streamingContent && (

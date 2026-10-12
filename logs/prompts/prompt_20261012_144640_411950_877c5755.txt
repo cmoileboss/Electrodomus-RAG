@@ -1,0 +1,70 @@
+[SYSTEM]
+
+Tu es un assistant technique expert pour la marque Electrodomus, spécialisé dans le dépannage,
+l'installation et l'entretien des appareils électroménagers (fours, lave-linge, lave-vaisselle).
+
+Règles absolues :
+- Réponds UNIQUEMENT à partir des extraits de documentation fournis dans le CONTEXTE.
+- Si la réponse ne figure pas dans le contexte, réponds exactement :
+  "Je n'ai pas trouvé cette information dans la documentation Electrodomus."
+- Ne complète jamais avec tes connaissances générales.
+- Cite TOUJOURS la source (section / page) entre parenthèses après chaque information.
+- Si plusieurs extraits se contredisent, privilégie les informations les plus récentes.
+- Réponds en français, de façon claire, structurée et concise.
+
+
+--------------------------------------------------------------------------------
+
+[USER]
+
+CONTEXTE :
+[Source : chunk 1136, document 80, Questions fréquentes - Fours encastrables, page ?]
+Reportez-vous au chapitre Codes erreur du manuel de votre modèle : chaque type d'appareil Electrodomus possède sa propre table de codes, et un même code n'a pas la même signification d'une gamme à l'autre. Le modèle exact figure sur l'étiquette du montant gauche, porte ouverte. Certains codes des fours imposent l'arrêt immédiat de l'utilisation : appliquez strictement la conduite indiquée dans le manuel.
+
+---
+
+[Source : chunk 1155, document 81, Questions fréquentes - Lave-linge, page ?]
+Reportez-vous au chapitre Codes erreur du manuel de votre modèle : il liste les codes propres à ce modèle et la conduite à tenir. Attention, un même code peut avoir une signification différente selon le type d'appareil Electrodomus : utilisez toujours la documentation de votre modèle exact, indiqué sur l'étiquette du pourtour de hublot.
+
+---
+
+[Source : chunk 1158, document 81, Questions fréquentes - Lave-linge, page ?]
+Vérifiez le disjoncteur, la prise (testez avec un autre appareil) et le robinet d'eau. Si l'arrêt se reproduit, notez le programme utilisé et le moment de l'arrêt avant d'appeler le SAV : ces informations orientent le diagnostic.
+
+---
+
+[Source : chunk 1140, document 80, Questions fréquentes - Fours encastrables, page ?]
+Le four doit disposer d'un circuit 16 A dédié : sur un circuit partagé, le disjoncteur saute à la montée en puissance. Faites vérifier l'installation par un électricien.
+
+---
+
+[Source : chunk 1114, document 79, Questions fréquentes - Lave-vaisselle, page ?]
+Consultez le chapitre Codes erreur du manuel de votre modèle : les codes et leur signification sont propres à chaque type d'appareil Electrodomus. Le modèle exact figure sur l'étiquette du chant de la porte.
+
+---
+
+[Source : chunk 1138, document 80, Questions fréquentes - Fours encastrables, page ?]
+Deux causes fréquentes : l'horloge clignote après une coupure de courant (le four refuse de chauffer tant que l'heure n'est pas réglée), ou le mode démonstration est activé (maintenez Retour 5 secondes pour le quitter).
+
+---
+
+[Source : chunk 1156, document 81, Questions fréquentes - Lave-linge, page ?]
+Pas forcément : une charge déséquilibrée (une couette seule, un tapis de bain) déclenche la protection anti-balourd et l'essorage est réduit ou annulé. Répartissez le linge et relancez un essorage. Si le phénomène se répète avec une charge normale, contactez le SAV.
+
+---
+
+[Source : chunk 745, document 70, Points d'attention, page ?]
+- Faire préciser systématiquement le modèle exact (étiquette sur le montant gauche, porte ouverte) : les codes erreur des fours FR n'ont pas la même signification que ceux des autres gammes Electrodomus.
+*Rédaction : cellule support technique - validation : responsable SAV. Toute mise à jour de cette procédure est notifiée par bulletin technique.*
+
+---
+
+[Source : chunk 1117, document 79, Questions fréquentes - Lave-vaisselle, page ?]
+Vérifiez le liquide de rinçage, choisissez un programme avec séchage (le Rapide n'en a pas), et entrouvrez la porte quelques minutes en fin de cycle. Videz d'abord le panier inférieur pour éviter les gouttes venant du panier supérieur.
+
+---
+
+[Source : chunk 1116, document 79, Questions fréquentes - Lave-vaisselle, page ?]
+Fermez le robinet d'arrivée d'eau et ne relancez pas de cycle. Vérifiez le raccord au robinet et l'état du joint de porte. Si l'appareil affiche un code de sécurité anti-fuite, une intervention est nécessaire : de l'eau est présente dans le socle.
+
+QUESTION : Comment diagnostiquer et résoudre les codes erreur fréquents sur les lave-linge et fours ?

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from io import BytesIO
-
+from datetime import datetime
 import pandas as pd
 
 from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
@@ -116,6 +116,10 @@ class DocManager:
                     if not model:
                         logger.warning("Modèle '%s' introuvable, code d'erreur '%s' ignoré", model_name, code)
                         continue
+                    error = errors_repo.get_by_code_and_model(code, model.id)
+                    if error:
+                        logger.warning("Code d'erreur '%s' déjà associé au modèle '%s', ignoré", code, model_name)
+                        continue
                     errors_repo.create(
                         signification=signification,
                         client_behaviour=client_behaviour,
@@ -142,6 +146,7 @@ class DocManager:
 
         document = doc_repo.get_by_filepath(filepath)
         if not document:
+            #date = self._get_document_date(filepath)
             document = doc_repo.create(title=title, filepath=filepath)
             logger.info("Document créé : '%s' (%s)", title, filepath)
         else:
@@ -277,3 +282,7 @@ class DocManager:
                     break
         logger.debug("%d code(s) d'erreur détecté(s) : %s", len(resultats), resultats)
         return resultats
+
+    #def _get_document_date(self, filepath: str) -> str:
+        # Implémentation pour extraire la date du document à partir du chemin de fichier
+        # Par exemple, on peut utiliser la date de création du fichier

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from api.services.chat_service import ChatService
+from api.services.chat_service import ChatService, _write_response_to_file
 
 
 class FakeEmbedModel:
@@ -18,6 +18,16 @@ class FakeEmbedModel:
 
 def _make_chunk(chunk_id, section="Objet", page=1, document_id=5, content="contenu"):
     return SimpleNamespace(id=chunk_id, section=section, page=page, document_id=document_id, content=content)
+
+
+def test_write_response_to_file_writes_only_answer(tmp_path):
+    """Le fichier de réponse contient exactement le texte retourné par le LLM."""
+    answer = "Réponse complète\n\n1. Première étape\n2. Deuxième étape"
+
+    with patch("api.services.chat_service.RESPONSE_LOG_DIR", tmp_path):
+        response_path = _write_response_to_file(answer)
+
+    assert response_path.read_text(encoding="utf-8") == answer
 
 
 @pytest.mark.asyncio
