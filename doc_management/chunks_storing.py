@@ -8,6 +8,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from database.database import get_session
+from database.document_repository import DocumentRepository
 from doc_management.doc_manager import DocManager
 from logger import get_logger
 
@@ -48,14 +49,32 @@ def _process_file(filepath: str, doc_manager: DocManager):
 
 def process_all():
     """Ingère en parallèle tous les fichiers supportés du dossier de documentation."""
-    doc_manager = build_doc_manager()
-    files = [
+    discovered_files = [
         str(f) for f in DOC_FOLDER.rglob("*")
         if f.is_file() and f.suffix in SUPPORTED_EXTENSIONS
     ]
-    if not files:
+    if not discovered_files:
         logger.warning("Aucun fichier support\u00e9 trouv\u00e9 dans %s", DOC_FOLDER)
         return
+
+    with get_session() as session:
+        existing_filenames = {
+            Path(document.filepath).name
+            for document in DocumentRepository(session).get_all()
+        }
+
+    files = [
+        filepath for filepath in discovered_files
+        if Path(filepath).name not in existing_filenames
+    ]
+    skipped_count = len(discovered_files) - len(files)
+    if skipped_count:
+        logger.info("%d document(s) déjà présent(s) en base ignoré(s).", skipped_count)
+    if not files:
+        logger.info("Tous les documents supportés sont déjà présents en base.")
+        return
+
+    doc_manager = build_doc_manager()
     logger.info("Ingestion de %d fichier(s) depuis %s", len(files), DOC_FOLDER)
     max_workers = min(12, len(files))
     with ThreadPoolExecutor(max_workers=max_workers) as executor:

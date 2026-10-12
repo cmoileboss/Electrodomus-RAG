@@ -1,11 +1,13 @@
 """Conversion, découpage (chunking), nettoyage et encodage des documents avant indexation en base."""
 
 from pathlib import Path
+from io import BytesIO
 
 import pandas as pd
 
 from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
 from docling.chunking import HybridChunker
+from docling.datamodel.document import DocumentStream
 from docling.document_converter import DocumentConverter
 
 from requests import session
@@ -26,6 +28,16 @@ import re
 from logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def replace_summary_with_h3(document: str) -> str:
+    """Remplace les balises HTML <summary> par des balises <h3>."""
+    return re.sub(
+        r"<(/?)summary(?=[\s/>])([^>]*)>",
+        r"<\1h3\2>",
+        document,
+        flags=re.IGNORECASE,
+    )
 
 
 class DocManager:
@@ -140,7 +152,15 @@ class DocManager:
             self._process_errors_file(session)
 
         logger.debug("Conversion du document : %s", doc_source)
-        doc = self.converter.convert(source=doc_source).document
+        if path.suffix.lower() in {".html", ".htm"}:
+            html_document = replace_summary_with_h3(path.read_text(encoding="utf-8"))
+            source = DocumentStream(
+                name=path.name,
+                stream=BytesIO(html_document.encode("utf-8")),
+            )
+            doc = self.converter.convert(source=source).document
+        else:
+            doc = self.converter.convert(source=doc_source).document
         chunk_iter = self.chunker.chunk(dl_doc=doc)
         chunks = list(chunk_iter)
 
@@ -179,6 +199,7 @@ class DocManager:
             session.add(new_chunk)
 
             model_names = self._search_models_for_chunk(new_chunk.embedding_text, model_repo)
+
             matched_models = []
             seen_model_ids = set()
             for model_name in model_names:
