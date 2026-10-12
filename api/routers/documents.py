@@ -134,6 +134,7 @@ async def ingest_upload(file: UploadFile = File(...)):
     filename = Path(file.filename).name
     extension = Path(filename).suffix.lower()
     if extension not in SUPPORTED_EXTENSIONS:
+        logger.info("Extension non supportée pour l'ingestion : %s", extension)
         raise HTTPException(status_code=400, detail=f"Extension non supportée : {extension}")
 
     DOC_FOLDER.mkdir(parents=True, exist_ok=True)

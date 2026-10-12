@@ -1,4 +1,4 @@
-"""Tests unitaires de ChatService : recherche hybride (vecteur + BM25), fusion RRF et génération Ollama."""
+"""Tests unitaires de ChatService : recherche hybride (vecteur + BM25), fusion RRF et génération Groq."""
 
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -120,37 +120,46 @@ def test_build_sources_extracts_metadata():
 
 
 def test_chat_non_streaming_returns_full_message():
-    """_chat() en mode non-streaming retourne directement le contenu du message de la réponse."""
+    """_chat() extrait le contenu de la réponse compatible OpenAI de Groq."""
     mock_response = MagicMock(ok=True)
-    mock_response.json.return_value = {"message": {"content": "La réponse"}}
+    mock_response.json.return_value = {"choices": [{"message": {"content": "La réponse"}}]}
 
-    with patch("api.services.chat_service.requests.post", return_value=mock_response) as mock_post:
+    with patch("api.services.chat_service.GROQ_API_KEY", "test-key"), \
+         patch("api.services.chat_service.MODEL", "test-model"), \
+         patch("api.services.chat_service.requests.post", return_value=mock_response) as mock_post:
         result = ChatService._chat([{"role": "user", "content": "Question"}], stream=False)
 
     assert result == "La réponse"
     assert mock_post.call_args.kwargs["json"]["stream"] is False
+    assert mock_post.call_args.kwargs["headers"]["Authorization"] == "Bearer test-key"
+    assert mock_post.call_args.args[0] == "https://api.groq.com/openai/v1/chat/completions"
 
 
 def test_chat_streaming_concatenates_tokens():
-    """_chat() en mode streaming concatène les tokens jusqu'à l'événement 'done'."""
+    """_chat() en mode streaming concatène les événements SSE jusqu'à [DONE]."""
     lines = [
-        b'{"message": {"content": "Bon"}}',
-        b'{"message": {"content": "jour"}, "done": true}',
+        b'data: {"choices": [{"delta": {"content": "Bon"}}]}',
+        b'data: {"choices": [{"delta": {"content": "jour"}}]}',
+        b"data: [DONE]",
     ]
     mock_response = MagicMock(ok=True)
     mock_response.iter_lines.return_value = lines
 
-    with patch("api.services.chat_service.requests.post", return_value=mock_response):
+    with patch("api.services.chat_service.GROQ_API_KEY", "test-key"), \
+         patch("api.services.chat_service.MODEL", "test-model"), \
+         patch("api.services.chat_service.requests.post", return_value=mock_response):
         result = ChatService._chat([{"role": "user", "content": "Question"}], stream=True)
 
     assert result == "Bonjour"
 
 
 def test_chat_raises_on_error_response():
-    """_chat() lève une RuntimeError si Ollama répond avec une erreur."""
+    """_chat() lève une RuntimeError si Groq répond avec une erreur."""
     mock_response = MagicMock(ok=False, status_code=500, text="erreur serveur")
 
-    with patch("api.services.chat_service.requests.post", return_value=mock_response):
+    with patch("api.services.chat_service.GROQ_API_KEY", "test-key"), \
+         patch("api.services.chat_service.MODEL", "test-model"), \
+         patch("api.services.chat_service.requests.post", return_value=mock_response):
         with pytest.raises(RuntimeError):
             ChatService._chat([{"role": "user", "content": "Question"}], stream=False)
 

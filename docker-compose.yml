@@ -43,7 +43,7 @@ services:
       DATABASE_NAME: electrodomus
       DATABASE_USER: postgres
       DATABASE_PASSWORD: postgres
-      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434/api/chat}
+      GROQ_URL: ${GROQ_URL:-https://api.groq.com/openai/v1/chat/completions}
 
     ports:
       - "8000:8000"

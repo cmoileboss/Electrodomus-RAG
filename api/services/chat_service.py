@@ -1,4 +1,4 @@
-"""Service RAG : embedding de la question, recherche vectorielle + BM25, fusion RRF et génération via Ollama."""
+"""Service RAG : embedding de la question, recherche vectorielle + BM25, fusion RRF et génération via Groq."""
 
 import asyncio
 import os
@@ -13,12 +13,13 @@ from logger import get_logger
 
 logger = get_logger(__name__)
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
-MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:latest")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_URL = os.getenv("GROQ_URL", "https://api.groq.com/openai/v1/chat/completions")
+MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 
 CHUNK_LIMIT_RRF = int(os.getenv("CHUNK_LIMIT_RRF", "10"))
 CHUNK_LIMIT_CROSS_ENCODER = int(os.getenv("CHUNK_LIMIT_CROSS_ENCODER", "10"))
-
+TOP_K_RERANKER = int(os.getenv("TOP_K_RERANKER", "3"))
 
 SYSTEM_PROMPT = """\
 Tu es un assistant technique expert pour la marque Electrodomus, spécialisé dans le dépannage,
@@ -65,35 +66,56 @@ class ChatService:
 
     @staticmethod
     def _chat(messages: list[dict], stream: bool = True) -> str:
-        """Envoie les messages à Ollama et retourne la réponse complète (streaming ou non)."""
+        """Envoie les messages à Groq et retourne la réponse complète (streaming ou non)."""
+        if not GROQ_API_KEY:
+            raise RuntimeError("GROQ_API_KEY n'est pas configurée.")
+        if not MODEL:
+            raise RuntimeError("GROQ_MODEL n'est pas configuré.")
+
         payload = {
             "model": MODEL,
             "messages": messages,
             "stream": stream,
         }
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json",
+        }
 
-        logger.debug("Envoi de %d message(s) à Ollama (modèle=%s, stream=%s)", len(messages), MODEL, stream)
-        response = requests.post(OLLAMA_URL, json=payload, stream=stream)
+        logger.debug("Envoi de %d message(s) à Groq (modèle=%s, stream=%s)", len(messages), MODEL, stream)
+        response = requests.post(
+            GROQ_URL,
+            headers=headers,
+            json=payload,
+            stream=stream,
+            timeout=120,
+        )
         if not response.ok:
-            logger.error("Erreur Ollama %s : %s", response.status_code, response.text)
-            raise RuntimeError(f"Ollama {response.status_code}: {response.text}")
+            logger.error("Erreur Groq %s : %s", response.status_code, response.text)
+            raise RuntimeError(f"Groq {response.status_code}: {response.text}")
 
         full_response = ""
 
         if stream:
-            for line in response.iter_lines():
+            for line in response.iter_lines(decode_unicode=True):
                 if not line:
                     continue
-                chunk = json.loads(line)
-                token = chunk.get("message", {}).get("content", "")
+                if isinstance(line, bytes):
+                    line = line.decode("utf-8")
+                if not line.startswith("data:"):
+                    continue
+                event_data = line.removeprefix("data:").strip()
+                if event_data == "[DONE]":
+                    break
+                chunk = json.loads(event_data)
+                choices = chunk.get("choices", [])
+                token = choices[0].get("delta", {}).get("content", "") if choices else ""
                 print(token, end="", flush=True)
                 full_response += token
-                if chunk.get("done"):
-                    break
             print()
         else:
             data = response.json()
-            full_response = data["message"]["content"]
+            full_response = data["choices"][0]["message"]["content"]
 
         return full_response
 
@@ -112,7 +134,7 @@ class ChatService:
 
     @staticmethod
     def _build_messages(question: str, history: list, rag_content: str) -> list[dict]:
-        """Assemble les messages Ollama : prompt système, historique puis message RAG."""
+        """Assemble les messages : prompt système, historique puis message RAG."""
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         for msg in history:
             messages.append({"role": msg.role, "content": msg.content})
@@ -176,7 +198,7 @@ class ChatService:
         reranked_nearest_chunks = self.reranker.rerank(
             question,
             nearest_rrf_chunks,
-            top_k=5,
+            top_k=TOP_K_RERANKER,
         )
         logger.debug("%d chunk(s) reranké(s) pour la requête /chat : %s", len(reranked_nearest_chunks), [c.id for c in reranked_nearest_chunks])
 
