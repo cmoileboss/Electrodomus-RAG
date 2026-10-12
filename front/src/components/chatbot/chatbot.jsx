@@ -77,6 +77,9 @@ export default function ChatBot() {
                     ))}
                 </select>
             </div>
+            <p className="chat-filter-hint">
+                L'utilisation des filtres n'est pas obligatoire mais permet de réaliser une recherche plus optimale.
+            </p>
             <div className="messages-container">
                 {messages.length === 0 && !streamingContent && (
                     <div className="no-messages">Aucun message pour le moment. Commencez la conversation !</div>

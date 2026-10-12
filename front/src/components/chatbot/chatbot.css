@@ -10,7 +10,15 @@
 
 .chat-filters {
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
+}
+
+.chat-filter-hint {
+    margin: -6px 0 0;
+    color: #666;
+    font-size: 12px;
+    line-height: 1.4;
 }
 
 .chat-filter-select {
