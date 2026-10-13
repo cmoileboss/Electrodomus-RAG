@@ -13,15 +13,40 @@ class FakeEmbedModel:
     """Modèle d'embedding factice retournant toujours le même vecteur."""
 
     def encode(self, text, normalize_embeddings=True):
+        """Retourne un vecteur constant pour les tests de ChatService.
+
+        Args:
+            text: Texte qui serait encodé par un modèle réel.
+            normalize_embeddings: Indique si le modèle appelant demande la normalisation.
+
+        Returns:
+            numpy.ndarray: Vecteur d'embedding factice de trois dimensions.
+        """
         return np.array([0.1, 0.2, 0.3])
 
 
 def _make_chunk(chunk_id, section="Objet", page=1, document_id=5, content="contenu"):
+    """Construit un chunk minimal pour les tests du pipeline RAG.
+
+    Args:
+        chunk_id: Identifiant du chunk simulé.
+        section: Nom de la section source.
+        page: Numéro de page source.
+        document_id: Identifiant du document parent.
+        content: Texte du chunk.
+
+    Returns:
+        SimpleNamespace: Objet exposant les attributs consultés par ChatService.
+    """
     return SimpleNamespace(id=chunk_id, section=section, page=page, document_id=document_id, content=content)
 
 
 def test_write_response_to_file_writes_only_answer(tmp_path):
-    """Le fichier de réponse contient exactement le texte retourné par le LLM."""
+    """Le fichier de réponse contient exactement le texte retourné par le LLM.
+
+    Args:
+        tmp_path: Répertoire temporaire fourni par pytest pour isoler le fichier.
+    """
     answer = "Réponse complète\n\n1. Première étape\n2. Deuxième étape"
 
     with patch("api.services.chat_service.RESPONSE_LOG_DIR", tmp_path):

@@ -6,7 +6,11 @@ from api.services.model_service import ModelService
 
 
 def _make_service():
-    """Crée un ModelService avec une session et un repository mockés."""
+    """Crée un ModelService avec une session et un repository mockés.
+
+    Returns:
+        tuple[ModelService, MagicMock]: Service configuré et session simulée.
+    """
     session = MagicMock()
     service = ModelService(session)
     service.repository = MagicMock()

@@ -6,7 +6,11 @@ from api.services.chunk_service import ChunkService
 
 
 def _make_service():
-    """Crée un ChunkService avec une session et un repository mockés."""
+    """Crée un ChunkService avec une session et un repository mockés.
+
+    Returns:
+        tuple[ChunkService, MagicMock]: Service configuré et session simulée.
+    """
     session = MagicMock()
     service = ChunkService(session)
     service.repository = MagicMock()

@@ -37,7 +37,11 @@ database_url = URL.create(
 engine = create_engine(database_url, echo=False)
 
 def get_session():
-    """Crée un nouveau moteur et retourne une session SQLAlchemy."""
+    """Ouvre une session SQLAlchemy liée au moteur configuré.
+
+    Returns:
+        Session: Nouvelle session à fermer par son appelant après utilisation.
+    """
     Session = sessionmaker(bind=engine)
     return Session()
 
@@ -55,7 +59,11 @@ DEFAULT_MODELS = [
 
 
 def init_db():
-    """Crée les extensions Postgres, les tables, l'index BM25 et sème les modèles par défaut."""
+    """Crée les tables, l'index BM25 et ajoute les modèles par défaut manquants.
+
+    Returns:
+        None: Les opérations sont effectuées dans la base configurée.
+    """
     Base.metadata.create_all(engine)
     logger.info("Tables créées avec succès.")
     with engine.connect() as conn:
@@ -73,7 +81,14 @@ def init_db():
 
 
 def _seed_models(engine):
-    """Insère les modèles d'appareils par défaut absents de la base."""
+    """Insère les modèles d'appareils par défaut absents de la base.
+
+    Args:
+        engine: Moteur SQLAlchemy utilisé pour interroger et alimenter la base.
+
+    Returns:
+        None: Les nouveaux modèles sont validés directement en base.
+    """
     Session = sessionmaker(bind=engine)
     with Session() as session:
         existing = {m.name for m in session.query(Model.name).all()}

@@ -31,7 +31,16 @@ RESULTS_DIR = Path(__file__).parent / "results"
 
 
 def run_evaluation(k_values: list[int], output_path: Path) -> None:
-    """Exécute l'évaluation sur EVAL_QUESTIONS et écrit le rapport en console et en JSON."""
+    """Évalue le retrieval et les réponses sur le jeu de questions configuré.
+
+    Args:
+        k_values: Valeurs de ``k`` pour lesquelles calculer précision et rappel.
+        output_path: Chemin du rapport JSON détaillé à écrire.
+
+    Returns:
+        None: Affiche le rapport et l'écrit en JSON lorsqu'au moins une question
+            est évaluable; ne produit pas de rapport si aucune ne l'est.
+    """
     max_k = max(k_values)
     embed_model = SentenceTransformer(EMBED_MODEL_ID, use_auth_token=HF_TOKEN)
     generated_at = datetime.now().isoformat(timespec="seconds")
@@ -79,7 +88,15 @@ def run_evaluation(k_values: list[int], output_path: Path) -> None:
 
 
 def _print_report(results: list[dict], k_values: list[int]) -> None:
-    """Affiche dans la console les métriques par question et leurs moyennes."""
+    """Affiche les métriques de chaque question et leur moyenne globale.
+
+    Args:
+        results: Résultats par question, incluant les métriques calculées.
+        k_values: Valeurs de ``k`` dont les précisions et rappels sont affichés.
+
+    Returns:
+        None: Écrit le rapport directement sur la sortie standard.
+    """
     n = len(results)
     for r in results:
         print(f"\nQ: {r['question']}")
@@ -97,7 +114,17 @@ def _print_report(results: list[dict], k_values: list[int]) -> None:
 
 
 def _write_json(results: list[dict], k_values: list[int], generated_at: str, output_path: Path) -> None:
-    """Écrit les résultats détaillés et le résumé des métriques dans un fichier JSON."""
+    """Écrit les résultats détaillés et les métriques moyennes en JSON.
+
+    Args:
+        results: Résultats d'évaluation regroupés par question.
+        k_values: Valeurs de ``k`` utilisées pour l'évaluation.
+        generated_at: Horodatage ISO de génération du rapport.
+        output_path: Destination du fichier; ses répertoires parents sont créés.
+
+    Returns:
+        None: Le JSON est écrit à l'emplacement indiqué.
+    """
     n = len(results)
     summary = {
         "precision": {str(k): sum(r["metrics"]["precision"][str(k)] for r in results) / n for k in k_values},

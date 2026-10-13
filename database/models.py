@@ -8,7 +8,7 @@ from sqlalchemy.orm import DeclarativeBase, relationship
 
 
 class Base(DeclarativeBase):
-    """Classe de base déclarative SQLAlchemy commune à tous les modèles."""
+    """Base déclarative SQLAlchemy qui porte les métadonnées des tables."""
     pass
 
 
@@ -31,7 +31,10 @@ chunk_error_code = Table(
 )
 
 class Document(Base):
-    """Un document source (PDF, HTML, etc.) ingesté dans la documentation Electrodomus."""
+    """Document source ingéré, repéré par un titre et un chemin uniques.
+
+    La relation ``chunks`` contient les segments extraits de ce document.
+    """
 
     __tablename__ = "documents"
 
@@ -44,7 +47,11 @@ class Document(Base):
 
 
 class Chunk(Base):
-    """Un segment de texte extrait d'un document, avec son embedding et son texte contextualisé."""
+    """Segment de document utilisé pour la recherche et la génération RAG.
+
+    ``content`` conserve le texte source, ``embedding_text`` le texte contextualisé
+    encodé, et ``embedding`` le vecteur de recherche associé.
+    """
 
     __tablename__ = "chunks"
 
@@ -72,7 +79,7 @@ class Chunk(Base):
 
 
 class Model(Base):
-    """Un modèle d'appareil Electrodomus (ex. four, lave-linge) rattaché à des chunks."""
+    """Modèle d'appareil Electrodomus associé aux chunks et codes d'erreur concernés."""
 
     __tablename__ = "models"
 
@@ -84,7 +91,10 @@ class Model(Base):
     error_codes = relationship("ErrorCode", back_populates="model", cascade="all, delete-orphan")
 
 class ErrorCode(Base):
-    """Un code d'erreur rattaché à un modèle, avec ses messages associés."""
+    """Code d'erreur propre à un modèle et instructions associées.
+
+    La clé primaire est composée de ``code`` et ``model_id``.
+    """
 
     __tablename__ = "error_codes"
 

@@ -13,7 +13,13 @@ router = APIRouter(prefix="/error-codes", tags=["error-codes"])
 
 
 class ErrorCodeResponse(BaseModel):
-    """Représentation d'un code d'erreur retournée par l'API."""
+    """Représentation publique d'un code d'erreur.
+
+    Attributes:
+        code: Valeur du code d'erreur.
+        model_id: Identifiant du modèle concerné, absent pour la liste globale.
+        signification: Explication du code, présente lorsque le filtre modèle est actif.
+    """
 
     code: str
     model_id: int | None = None
@@ -24,7 +30,15 @@ class ErrorCodeResponse(BaseModel):
 
 @router.get("/", response_model=list[ErrorCodeResponse])
 def get_all(model_id: int | None = None):
-    """Liste les codes d'erreur : filtrés par modèle si `model_id` est fourni, sinon uniques tous modèles confondus."""
+    """Liste les codes d'erreur, éventuellement filtrés par modèle.
+
+    Args:
+        model_id: Identifiant du modèle à filtrer; ``None`` demande les codes
+            uniques tous modèles confondus.
+
+    Returns:
+        list[ErrorCodeResponse]: Codes trouvés ou valeurs de codes distinctes.
+    """
     with get_session() as session:
         service = ErrorService(session)
         if model_id is not None:

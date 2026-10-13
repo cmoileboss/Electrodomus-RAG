@@ -12,28 +12,65 @@ logger = get_logger(__name__)
 
 
 class DocumentService:
-    """Opérations CRUD sur les documents."""
+    """Applique la logique métier de gestion des documents."""
 
     def __init__(self, session: Session):
+        """Prépare le service avec la session de travail de la requête.
+
+        Args:
+            session: Session SQLAlchemy partagée avec le dépôt de documents.
+
+        Returns:
+            None: Le constructeur initialise le dépôt associé au service.
+        """
         self.session = session
         self.repository = DocumentRepository(session)
 
     def get_all(self) -> list[Document]:
-        """Retourne tous les documents."""
+        """Récupère tous les documents enregistrés.
+
+        Returns:
+            list[Document]: Documents persistés, éventuellement une liste vide.
+        """
         return self.repository.get_all()
 
     def get_by_id(self, document_id: int) -> Document | None:
-        """Retourne un document par son id, ou None si introuvable."""
+        """Recherche un document par son identifiant.
+
+        Args:
+            document_id: Identifiant du document recherché.
+
+        Returns:
+            Document | None: Document trouvé, ou ``None`` si absent.
+        """
         return self.repository.get_by_id(document_id)
 
     def create(self, title: str, filepath: str, date: datetime | None = None) -> Document:
-        """Crée un nouveau document."""
+        """Crée un document et consigne sa création.
+
+        Args:
+            title: Titre unique du document.
+            filepath: Chemin du fichier source.
+            date: Date du document, facultative.
+
+        Returns:
+            Document: Document créé et persisté par le dépôt.
+        """
         document = self.repository.create(title=title, filepath=filepath, date=date)
         logger.info("Document %d créé : '%s'", document.id, title)
         return document
 
     def update(self, document_id: int, fields: dict) -> Document | None:
-        """Met à jour partiellement un document existant, ou None si introuvable."""
+        """Applique les champs fournis à un document existant.
+
+        Args:
+            document_id: Identifiant du document à modifier.
+            fields: Noms et valeurs des attributs à mettre à jour.
+
+        Returns:
+            Document | None: Document actualisé, ou ``None`` si l'identifiant
+                ne correspond à aucun document.
+        """
         document = self.repository.get_by_id(document_id)
         if not document:
             logger.warning("Document %d introuvable pour mise à jour", document_id)
@@ -46,7 +83,14 @@ class DocumentService:
         return document
 
     def delete(self, document_id: int) -> bool:
-        """Supprime un document, retourne True si la suppression a eu lieu."""
+        """Supprime un document et journalise le résultat.
+
+        Args:
+            document_id: Identifiant du document à supprimer.
+
+        Returns:
+            bool: ``True`` si un document a été supprimé, sinon ``False``.
+        """
         deleted = self.repository.delete(document_id)
         if deleted:
             logger.info("Document %d supprimé", document_id)
@@ -55,7 +99,11 @@ class DocumentService:
         return deleted
 
     def delete_all(self) -> int:
-        """Supprime tous les documents, retourne le nombre supprimé."""
+        """Supprime tous les documents et journalise le nombre traité.
+
+        Returns:
+            int: Nombre de documents supprimés.
+        """
         count = self.repository.delete_all()
         logger.info("%d document(s) supprimé(s)", count)
         return count

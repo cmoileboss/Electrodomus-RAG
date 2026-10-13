@@ -11,14 +11,25 @@ from api.routers import models as models_router
 
 @pytest.fixture
 def client():
-    """Client de test FastAPI avec le router /models."""
+    """Crée un client FastAPI avec le router /models.
+
+    Returns:
+        TestClient: Client configuré pour envoyer des requêtes au router de test.
+    """
     app = FastAPI()
     app.include_router(models_router.router)
     return TestClient(app)
 
 
 def _fake_model(**overrides):
-    """Construit un modèle factice avec des valeurs par défaut surchargeables."""
+    """Construit un modèle factice et remplace les valeurs demandées.
+
+    Args:
+        **overrides: Attributs à remplacer dans les valeurs par défaut du modèle.
+
+    Returns:
+        MagicMock: Objet factice exposant les attributs d'un modèle API.
+    """
     defaults = dict(id=1, name="FR-600", type="four encastrable")
     defaults.update(overrides)
     # "name" est un paramètre spécial du constructeur MagicMock, il faut l'assigner après coup
@@ -29,7 +40,11 @@ def _fake_model(**overrides):
 
 
 def test_get_all_returns_models(client):
-    """GET /models/ retourne la liste des modèles."""
+    """GET /models/ retourne la liste des modèles.
+
+    Args:
+        client: Client FastAPI fourni par la fixture de ce module.
+    """
     with patch.object(models_router, "get_session", return_value=MagicMock()), \
          patch.object(models_router, "ModelService") as MockService:
         MockService.return_value.get_all.return_value = [_fake_model()]
@@ -40,7 +55,11 @@ def test_get_all_returns_models(client):
 
 
 def test_get_by_id_not_found_returns_404(client):
-    """GET /models/{id} retourne 404 quand le modèle est introuvable."""
+    """GET /models/{id} retourne 404 quand le modèle est introuvable.
+
+    Args:
+        client: Client FastAPI fourni par la fixture de ce module.
+    """
     with patch.object(models_router, "get_session", return_value=MagicMock()), \
          patch.object(models_router, "ModelService") as MockService:
         MockService.return_value.get_by_id.return_value = None
@@ -50,7 +69,11 @@ def test_get_by_id_not_found_returns_404(client):
 
 
 def test_create_model_returns_201(client):
-    """POST /models/ crée un modèle et retourne 201."""
+    """POST /models/ crée un modèle et retourne 201.
+
+    Args:
+        client: Client FastAPI fourni par la fixture de ce module.
+    """
     with patch.object(models_router, "get_session", return_value=MagicMock()), \
          patch.object(models_router, "ModelService") as MockService:
         MockService.return_value.create.return_value = _fake_model()
@@ -60,7 +83,11 @@ def test_create_model_returns_201(client):
 
 
 def test_update_not_found_returns_404(client):
-    """PUT /models/{id} retourne 404 quand le modèle est introuvable."""
+    """PUT /models/{id} retourne 404 quand le modèle est introuvable.
+
+    Args:
+        client: Client FastAPI fourni par la fixture de ce module.
+    """
     with patch.object(models_router, "get_session", return_value=MagicMock()), \
          patch.object(models_router, "ModelService") as MockService:
         MockService.return_value.update.return_value = None
@@ -70,7 +97,11 @@ def test_update_not_found_returns_404(client):
 
 
 def test_delete_returns_204_when_found(client):
-    """DELETE /models/{id} supprime le modèle et retourne 204."""
+    """DELETE /models/{id} supprime le modèle et retourne 204.
+
+    Args:
+        client: Client FastAPI fourni par la fixture de ce module.
+    """
     with patch.object(models_router, "get_session", return_value=MagicMock()), \
          patch.object(models_router, "ModelService") as MockService:
         MockService.return_value.delete.return_value = True
@@ -80,7 +111,11 @@ def test_delete_returns_204_when_found(client):
 
 
 def test_delete_returns_404_when_not_found(client):
-    """DELETE /models/{id} retourne 404 quand le modèle est introuvable."""
+    """DELETE /models/{id} retourne 404 quand le modèle est introuvable.
+
+    Args:
+        client: Client FastAPI fourni par la fixture de ce module.
+    """
     with patch.object(models_router, "get_session", return_value=MagicMock()), \
          patch.object(models_router, "ModelService") as MockService:
         MockService.return_value.delete.return_value = False

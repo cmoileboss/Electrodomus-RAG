@@ -10,22 +10,45 @@ logger = get_logger(__name__)
 
 
 class ChunkService:
-    """Opérations CRUD sur les chunks de documents."""
+    """Applique la logique métier de gestion des chunks de documents."""
 
     def __init__(self, session: Session):
+        """Prépare le service avec la session de travail de la requête.
+
+        Args:
+            session: Session SQLAlchemy partagée avec le dépôt de chunks.
+
+        Returns:
+            None: Le constructeur initialise le dépôt associé au service.
+        """
         self.session = session
         self.repository = ChunkRepository(session)
 
     def get_all(self) -> list[Chunk]:
-        """Retourne tous les chunks."""
+        """Récupère tous les chunks enregistrés.
+
+        Returns:
+            list[Chunk]: Chunks présents en base, éventuellement une liste vide.
+        """
         return self.session.query(Chunk).all()
 
     def get_by_id(self, chunk_id: int) -> Chunk | None:
-        """Retourne un chunk par son id, ou None si introuvable."""
+        """Recherche un chunk par son identifiant.
+
+        Args:
+            chunk_id: Identifiant du chunk recherché.
+
+        Returns:
+            Chunk | None: Chunk trouvé, ou ``None`` si absent.
+        """
         return self.repository.get_by_id(chunk_id)
 
     def count(self) -> int:
-        """Retourne le nombre total de chunks."""
+        """Compte les chunks enregistrés.
+
+        Returns:
+            int: Nombre total de chunks.
+        """
         return self.repository.count()
 
     def create(
@@ -38,7 +61,20 @@ class ChunkService:
         page: int | None = None,
         embedding: list[float] | None = None,
     ) -> Chunk:
-        """Crée un nouveau chunk pour un document."""
+        """Crée un chunk et consigne sa création.
+
+        Args:
+            document_id: Identifiant du document auquel le chunk appartient.
+            chunk_index: Position du chunk dans le document.
+            content: Texte extrait du document.
+            embedding_text: Texte contextualisé utilisé pour l'embedding.
+            section: Titre de la section source, s'il existe.
+            page: Numéro de page source, s'il existe.
+            embedding: Vecteur du chunk, facultatif.
+
+        Returns:
+            Chunk: Chunk créé et persisté par le dépôt.
+        """
         chunk = self.repository.create(
             document_id=document_id,
             chunk_index=chunk_index,
@@ -52,7 +88,15 @@ class ChunkService:
         return chunk
 
     def update(self, chunk_id: int, fields: dict) -> Chunk | None:
-        """Met à jour partiellement un chunk existant, ou None si introuvable."""
+        """Applique les champs fournis à un chunk existant.
+
+        Args:
+            chunk_id: Identifiant du chunk à modifier.
+            fields: Noms et valeurs des attributs à mettre à jour.
+
+        Returns:
+            Chunk | None: Chunk actualisé, ou ``None`` si l'identifiant est absent.
+        """
         chunk = self.repository.get_by_id(chunk_id)
         if not chunk:
             logger.warning("Chunk %d introuvable pour mise à jour", chunk_id)
@@ -65,7 +109,14 @@ class ChunkService:
         return chunk
 
     def delete(self, chunk_id: int) -> bool:
-        """Supprime un chunk, retourne True si la suppression a eu lieu."""
+        """Supprime un chunk et journalise le résultat.
+
+        Args:
+            chunk_id: Identifiant du chunk à supprimer.
+
+        Returns:
+            bool: ``True`` si un chunk a été supprimé, sinon ``False``.
+        """
         deleted = self.repository.delete(chunk_id)
         if deleted:
             logger.info("Chunk %d supprimé", chunk_id)

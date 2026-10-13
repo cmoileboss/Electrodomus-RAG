@@ -44,7 +44,14 @@ Règles absolues :
 
 
 def _write_prompt_to_file(messages: list[dict]) -> Path:
-    """Écrit uniquement les rôles et contenus du prompt dans un fichier lisible."""
+    """Enregistre le prompt sous forme textuelle, sans autre métadonnée de requête.
+
+    Args:
+        messages: Messages contenant chacun un rôle et un contenu textuel.
+
+    Returns:
+        Path: Chemin du fichier de prompt créé.
+    """
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
     filename = f"prompt_{timestamp}_{uuid4().hex[:8]}.txt"
     prompt_path = PROMPT_LOG_DIR / filename
@@ -59,7 +66,14 @@ def _write_prompt_to_file(messages: list[dict]) -> Path:
 
 
 def _write_response_to_file(response: str) -> Path:
-    """Écrit le texte brut de la réponse du LLM dans un fichier distinct."""
+    """Enregistre le texte brut du modèle dans un fichier de réponse distinct.
+
+    Args:
+        response: Réponse textuelle complète à archiver.
+
+    Returns:
+        Path: Chemin du fichier de réponse créé.
+    """
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
     filename = f"response_{timestamp}_{uuid4().hex[:8]}.txt"
     response_path = RESPONSE_LOG_DIR / filename
@@ -72,11 +86,27 @@ class ChatService:
     """Orchestre le pipeline RAG : recherche de contexte pertinent puis génération de réponse."""
 
     def __init__(self, embed_model, reranker):
+        """Construit le service avec les modèles partagés par l'application.
+
+        Args:
+            embed_model: Modèle fournissant la méthode ``encode`` pour les questions.
+            reranker: Composant qui reclasse les chunks candidats.
+
+        Returns:
+            None: Le constructeur conserve les dépendances pour les appels suivants.
+        """
         self.embed_model = embed_model
         self.reranker = reranker
 
     async def _embed(self, question: str):
-        """Calcule l'embedding normalisé de la question, dans un thread séparé."""
+        """Calcule l'embedding normalisé de la question hors de la boucle asynchrone.
+
+        Args:
+            question: Texte de la question à convertir en vecteur.
+
+        Returns:
+            Embedding: Vecteur produit par ``embed_model.encode`` avec normalisation.
+        """
         return await asyncio.to_thread(
             self.embed_model.encode, question, normalize_embeddings=True
         )
@@ -85,7 +115,16 @@ class ChatService:
     def _get_nearest_vectorized_chunks(
         embedding, model_id: int | None = None, error_code: str | None = None
     ) -> list[Chunk]:
-        """Recherche les chunks les plus proches par similarité vectorielle (cosinus)."""
+        """Recherche les chunks les plus proches selon la distance cosinus.
+
+        Args:
+            embedding: Vecteur de la question, exposant la méthode ``tolist``.
+            model_id: Identifiant facultatif du modèle d'appareil à filtrer.
+            error_code: Code d'erreur facultatif à utiliser comme filtre.
+
+        Returns:
+            list[Chunk]: Chunks classés par proximité vectorielle.
+        """
         with get_session() as session:
             return ChunkRepository(session).get_nearest(embedding.tolist(), model_id=model_id, error_code=error_code)
 
@@ -93,13 +132,35 @@ class ChatService:
     def _get_nearest_bm25_chunks(
         question: str, model_id: int | None = None, error_code: str | None = None
     ) -> list[Chunk]:
-        """Recherche les chunks les plus pertinents par correspondance lexicale (BM25)."""
+        """Recherche des chunks par correspondance lexicale BM25.
+
+        Args:
+            question: Texte soumis à la recherche BM25.
+            model_id: Identifiant facultatif du modèle d'appareil à filtrer.
+            error_code: Code d'erreur facultatif à utiliser comme filtre.
+
+        Returns:
+            list[Chunk]: Chunks classés par pertinence lexicale.
+        """
         with get_session() as session:
             return ChunkRepository(session).search_bm25(question, model_id=model_id, error_code=error_code)
 
     @staticmethod
     def _chat(messages: list[dict], stream: bool = True) -> str:
-        """Envoie les messages à Groq et retourne la réponse complète (streaming ou non)."""
+        """Envoie une conversation à Groq et rassemble le texte généré.
+
+        Args:
+            messages: Messages de conversation au format rôle/contenu de l'API.
+            stream: Active la lecture et l'affichage progressifs des tokens si vrai.
+
+        Returns:
+            str: Réponse complète produite par le modèle.
+
+        Raises:
+            RuntimeError: Si la clé API ou le nom du modèle manque, ou si Groq
+                retourne une réponse HTTP en erreur.
+            requests.RequestException: Si la requête HTTP échoue au niveau transport.
+        """
         if not GROQ_API_KEY:
             raise RuntimeError("GROQ_API_KEY n'est pas configurée.")
         if not MODEL:
@@ -155,7 +216,15 @@ class ChatService:
 
     @staticmethod
     def _build_rag_message(user_input: str, chunks: list) -> str:
-        """Construit le message utilisateur contenant le contexte des chunks et la question."""
+        """Formate le contexte documentaire et la question pour le modèle de langage.
+
+        Args:
+            user_input: Question originale de l'utilisateur.
+            chunks: Chunks retenus et leurs métadonnées de source.
+
+        Returns:
+            str: Message combinant contexte, références de source et question.
+        """
         if not chunks:
             context = "Aucun extrait pertinent trouvé."
         else:
@@ -167,7 +236,17 @@ class ChatService:
 
     @staticmethod
     def _build_messages(question: str, history: list, rag_content: str) -> list[dict]:
-        """Assemble les messages : prompt système, historique puis message RAG."""
+        """Assemble le prompt système, l'historique et le contexte RAG.
+
+        Args:
+            question: Question originale (conservée dans l'interface, le contexte
+                question étant déjà intégré à ``rag_content``).
+            history: Messages antérieurs dotés des attributs ``role`` et ``content``.
+            rag_content: Message utilisateur contenant le contexte et la question.
+
+        Returns:
+            list[dict]: Messages au format rôle/contenu attendus par l'API Groq.
+        """
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         for msg in history:
             messages.append({"role": msg.role, "content": msg.content})
@@ -176,7 +255,15 @@ class ChatService:
 
     @staticmethod
     def _build_sources(chunks: list) -> list[dict]:
-        """Extrait les métadonnées de source (section, page, document) des chunks retenus."""
+        """Extrait les métadonnées de provenance des chunks retenus.
+
+        Args:
+            chunks: Chunks utilisés pour construire le contexte de réponse.
+
+        Returns:
+            list[dict]: Une entrée par chunk avec sa section, sa page et son
+                identifiant de document.
+        """
         return [
             {"section": c.section, "page": c.page, "document_id": c.document_id}
             for c in chunks
@@ -187,12 +274,13 @@ class ChatService:
         """Effectue la fusion par rang réciproque (RRF) de deux listes de résultats, dédoublonnée par id de chunk.
 
         Args:
-            vectorial_list (list[Chunk]): Liste des chunks triés par similarité vectorielle.
-            bm_list (list[Chunk]): Liste des chunks triés par score BM25.
-            k (int, optional): Paramètre de décalage pour le calcul des scores RRF. 60 par défaut.
+            vectorial_list: Chunks ordonnés par proximité vectorielle.
+            bm_list: Chunks ordonnés par pertinence BM25.
+            k: Constante de décalage RRF qui réduit l'influence des rangs élevés.
 
         Returns:
-            list[Chunk]: Liste des chunks triée par score RRF décroissant.
+            list[Chunk]: Chunks dédoublonnés par identifiant, triés par score RRF
+                décroissant et limités par ``CHUNK_LIMIT_RRF``.
         """
         scores: dict[int, float] = {}
         chunks_by_id: dict[int, Chunk] = {}
@@ -215,7 +303,18 @@ class ChatService:
         model_id: int | None = None,
         error_code: str | None = None,
     ) -> dict:
-        """Retourne une réponse RAG complète : {answer, sources}."""
+        """Exécute les recherches hybrides, reclasse les sources et génère une réponse.
+
+        Args:
+            question: Question textuelle à traiter.
+            history: Historique des messages antérieurs de la conversation.
+            model_id: Identifiant facultatif du modèle d'appareil à filtrer.
+            error_code: Code d'erreur facultatif à utiliser comme filtre de recherche.
+
+        Returns:
+            dict: Résultat contenant ``answer`` (réponse générée) et ``sources``
+                (métadonnées des chunks retenus).
+        """
         logger.info("Requête /chat reçue : %s (model_id=%s, error_code=%s)", question, model_id, error_code)
         embedding = await self._embed(question)
 

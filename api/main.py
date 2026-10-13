@@ -29,7 +29,15 @@ CROSS_ENCODER_MODEL = os.getenv("CROSS_ENCODER_MODEL", "")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialise la base de données et charge les modèles ML une seule fois au démarrage."""
+    """Initialise les ressources partagées pendant le cycle de vie FastAPI.
+
+    Args:
+        app: Application dont l'état reçoit les modèles chargés au démarrage.
+
+    Returns:
+        AsyncIterator[None]: Contexte asynchrone qui suspend l'exécution pendant
+            la durée de vie de l'application.
+    """
     init_db()
     logger.info("Initialisation de la base de données terminée.")
 
@@ -54,7 +62,11 @@ app.include_router(models_router.router)
 
 @app.get("/health")
 def health():
-    """Vérifie que l'API est opérationnelle."""
+    """Retourne l'état de disponibilité de l'API.
+
+    Returns:
+        dict[str, str]: Statut constant ``{"status": "ok"}``.
+    """
     return {"status": "ok"}
 
 if __name__ == "__main__":

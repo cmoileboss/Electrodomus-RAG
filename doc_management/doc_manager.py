@@ -46,7 +46,15 @@ MOIS_NUM.update({"fevrier": 2, "aout": 8, "decembre": 12})
 
 
 def extract_date(text: str) -> str | None:
-    """Retourne la première date trouvée (YYYY-MM-DD, YYYY-MM ou YYYY selon la précision), ou None."""
+    """Extrait la première date reconnue dans un texte français.
+
+    Args:
+        text: Texte source contenant éventuellement une date ou une année.
+
+    Returns:
+        str | None: Date au format ``YYYY-MM-DD``, ``YYYY-MM`` ou ``YYYY``,
+            selon la précision trouvée; ``None`` si aucune date n'est reconnue.
+    """
     for pattern, precision in PATTERNS:
         match = re.search(pattern, text, flags=re.IGNORECASE)
         if not match:
@@ -59,7 +67,14 @@ def extract_date(text: str) -> str | None:
     return None
 
 def replace_summary_with_h3(document: str) -> str:
-    """Remplace les balises HTML <summary> par des balises <h3>."""
+    """Remplace les balises ouvrantes et fermantes ``summary`` par des balises ``h3``.
+
+    Args:
+        document: Contenu HTML à transformer.
+
+    Returns:
+        str: Contenu HTML avec les éléments ``summary`` convertis en ``h3``.
+    """
     return re.sub(
         r"<(/?)summary(?=[\s/>])([^>]*)>",
         r"<\1h3\2>",
@@ -72,6 +87,16 @@ class DocManager:
     """Convertit un fichier source en chunks nettoyés, contextualisés, encodés puis persistés."""
 
     def __init__(self, embed_model_id: str, hf_token: str, max_tokens: int):
+        """Charge le tokenizer, le modèle d'embedding et les outils de conversion.
+
+        Args:
+            embed_model_id: Identifiant Hugging Face du modèle de tokenizer et d'embedding.
+            hf_token: Jeton d'accès Hugging Face, requis pour les modèles privés.
+            max_tokens: Longueur maximale des chunks exprimée en tokens.
+
+        Returns:
+            None: Le constructeur prépare les ressources réutilisées pour l'ingestion.
+        """
         logger.info("Initialisation du DocManager avec le modèle d'embedding : %s (max_tokens=%d)", embed_model_id, max_tokens)
         tokenizer = HuggingFaceTokenizer(
             tokenizer=AutoTokenizer.from_pretrained(
@@ -94,7 +119,14 @@ class DocManager:
 
 
     def _clean_chunk(self, text: str) -> str:
-        """Nettoyage conservateur d'un chunk."""
+        """Normalise les espaces et tirets d'un chunk sans changer son contenu.
+
+        Args:
+            text: Texte extrait à nettoyer.
+
+        Returns:
+            str: Texte nettoyé, sans espaces superflus en début et fin.
+        """
 
         # Espaces insécables
         text = text.replace("\xa0", " ")
@@ -115,6 +147,15 @@ class DocManager:
 
     @staticmethod
     def _process_errors_file(session: Session):
+        """Importe le référentiel Excel et crée les associations code/modèle manquantes.
+
+        Args:
+            session: Session SQLAlchemy utilisée pour lire les modèles et enregistrer
+                les codes d'erreur importés.
+
+        Returns:
+            None: Les associations nouvelles sont enregistrées dans la session.
+        """
         logger.info("Lecture du référentiel des codes d'erreur.")
         sheets = pd.read_excel(
             r"C:\Users\guillaume.pedrona\Documents\Projets\Electrodomus-RAG\Documentation_Electrodomus\Referentiel_codes_erreur.xlsx",
@@ -161,7 +202,18 @@ class DocManager:
         logger.info("Référentiel des codes d'erreur traité : %d association(s) code/modèle créée(s).", created_count)
 
     def process_document(self, doc_source: str, session: Session):
-        """Convertit, découpe, encode et persiste les chunks d'un document (créé s'il n'existe pas)."""
+        """Convertit un document, indexe ses chunks et les relie aux modèles et erreurs détectés.
+
+        Le document est créé s'il n'existe pas déjà. Un fichier portant le nom
+        ``referentiel_codes_erreur`` déclenche également l'import du référentiel Excel.
+
+        Args:
+            doc_source: Chemin du fichier source pris en charge par le convertisseur.
+            session: Session SQLAlchemy utilisée pour créer le document et ses chunks.
+
+        Returns:
+            None: Le document et les chunks sont persistés dans la session fournie.
+        """
         logger.info("Traitement du document demandé : %s", doc_source)
         path = Path(doc_source)
         filepath = str(path.resolve())
@@ -270,6 +322,15 @@ class DocManager:
         logger.info("%d chunk(s) insérés pour le document '%s'.", len(db_chunks), title)
 
     def _search_models_for_chunk(self, embedding_text: str, model_repo: ModelRepository) -> list[str]:
+        """Repère les références de modèles connues dans le texte d'un chunk.
+
+        Args:
+            embedding_text: Texte contextualisé dans lequel rechercher les références.
+            model_repo: Dépôt fournissant la liste des modèles connus.
+
+        Returns:
+            list[str]: Références détectées, dans leur ordre d'apparition.
+        """
         codes = model_repo.get_all()
         code_names = [code.name for code in codes]
         logger.debug("Recherche de modèles parmi %d modèle(s) connu(s)", len(code_names))
@@ -295,6 +356,15 @@ class DocManager:
         return resultats
     
     def _search_errors_for_chunk(self, embedding_text: str, error_repo: ErrorRepository) -> list[str]:
+        """Repère les codes d'erreur connus dans le texte d'un chunk.
+
+        Args:
+            embedding_text: Texte contextualisé dans lequel rechercher les codes.
+            error_repo: Dépôt fournissant les codes d'erreur connus.
+
+        Returns:
+            list[str]: Codes détectés, dans leur ordre d'apparition.
+        """
         error_codes = error_repo.get_all_unique_codes()
         logger.debug("Recherche de codes d'erreur parmi %d code(s) connu(s)", len(error_codes))
 

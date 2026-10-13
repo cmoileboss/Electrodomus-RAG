@@ -6,7 +6,11 @@ from api.services.document_service import DocumentService
 
 
 def _make_service():
-    """Crée un DocumentService avec une session et un repository mockés."""
+    """Crée un DocumentService avec une session et un repository mockés.
+
+    Returns:
+        tuple[DocumentService, MagicMock]: Service configuré et session simulée.
+    """
     session = MagicMock()
     service = DocumentService(session)
     service.repository = MagicMock()

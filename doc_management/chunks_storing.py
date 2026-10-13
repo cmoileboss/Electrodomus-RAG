@@ -24,7 +24,11 @@ SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".html", ".xlsx", ".txt"}
 
 
 def build_doc_manager() -> DocManager:
-    """Construit un DocManager configuré à partir des variables d'environnement."""
+    """Construit un gestionnaire de documents avec la configuration d'environnement.
+
+    Returns:
+        DocManager: Gestionnaire configuré avec le modèle et la limite de tokens.
+    """
     return DocManager(
         embed_model_id=EMBED_MODEL_ID,
         hf_token=HF_TOKEN,
@@ -33,7 +37,14 @@ def build_doc_manager() -> DocManager:
 
 
 def process_single(filepath: str):
-    """Ingère un unique fichier dans sa propre session de base de données."""
+    """Ingère un fichier unique en ouvrant sa session de base de données.
+
+    Args:
+        filepath: Chemin du fichier source à traiter.
+
+    Returns:
+        None: Le traitement est effectué dans la session puis celle-ci est fermée.
+    """
     logger.info("Traitement du fichier unique : %s", filepath)
     doc_manager = build_doc_manager()
     with get_session() as session:
@@ -42,13 +53,28 @@ def process_single(filepath: str):
 
 
 def _process_file(filepath: str, doc_manager: DocManager):
-    """Traite un fichier dans son propre thread avec sa propre session."""
+    """Traite un fichier dans une session dédiée, pour l'exécution concurrente.
+
+    Args:
+        filepath: Chemin du fichier source à traiter.
+        doc_manager: Gestionnaire de documents partagé par les tâches d'ingestion.
+
+    Returns:
+        None: Le fichier est traité et les changements sont validés par son gestionnaire.
+    """
     with get_session() as session:
         doc_manager.process_document(doc_source=filepath, session=session)
 
 
 def process_all():
-    """Ingère en parallèle tous les fichiers supportés du dossier de documentation."""
+    """Découvre et ingère les nouveaux fichiers supportés en parallèle.
+
+    Les fichiers dont le nom est déjà présent en base sont ignorés. Les erreurs
+    de tâches individuelles sont consignées sans interrompre les autres traitements.
+
+    Returns:
+        None: Les résultats sont persistés par les tâches concurrentes.
+    """
     discovered_files = [
         str(f) for f in DOC_FOLDER.rglob("*")
         if f.is_file() and f.suffix in SUPPORTED_EXTENSIONS

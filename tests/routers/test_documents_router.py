@@ -12,21 +12,36 @@ from api.routers import documents as documents_router
 
 @pytest.fixture
 def client():
-    """Client de test FastAPI avec le router /documents."""
+    """Crée un client FastAPI avec le router /documents.
+
+    Returns:
+        TestClient: Client configuré pour envoyer des requêtes au router de test.
+    """
     app = FastAPI()
     app.include_router(documents_router.router)
     return TestClient(app)
 
 
 def _fake_document(**overrides):
-    """Construit un document factice avec des valeurs par défaut surchargeables."""
+    """Construit un document factice et remplace les valeurs demandées.
+
+    Args:
+        **overrides: Attributs à remplacer dans les valeurs par défaut du document.
+
+    Returns:
+        MagicMock: Objet factice exposant les attributs d'un document API.
+    """
     defaults = dict(id=1, title="Manuel_FR-600", filepath="/docs/Manuel_FR-600.pdf", date=datetime(2026, 1, 1))
     defaults.update(overrides)
     return MagicMock(**defaults)
 
 
 def test_get_all_returns_documents(client):
-    """GET /documents/ retourne la liste des documents."""
+    """GET /documents/ retourne la liste des documents.
+
+    Args:
+        client: Client FastAPI fourni par la fixture de ce module.
+    """
     with patch.object(documents_router, "get_session", return_value=MagicMock()), \
          patch.object(documents_router, "DocumentService") as MockService:
         MockService.return_value.get_all.return_value = [_fake_document()]
@@ -37,7 +52,11 @@ def test_get_all_returns_documents(client):
 
 
 def test_get_by_id_not_found_returns_404(client):
-    """GET /documents/{id} retourne 404 quand le document est introuvable."""
+    """GET /documents/{id} retourne 404 quand le document est introuvable.
+
+    Args:
+        client: Client FastAPI fourni par la fixture de ce module.
+    """
     with patch.object(documents_router, "get_session", return_value=MagicMock()), \
          patch.object(documents_router, "DocumentService") as MockService:
         MockService.return_value.get_by_id.return_value = None
@@ -47,7 +66,11 @@ def test_get_by_id_not_found_returns_404(client):
 
 
 def test_create_document_returns_201(client):
-    """POST /documents/ crée un document et retourne 201."""
+    """POST /documents/ crée un document et retourne 201.
+
+    Args:
+        client: Client FastAPI fourni par la fixture de ce module.
+    """
     with patch.object(documents_router, "get_session", return_value=MagicMock()), \
          patch.object(documents_router, "DocumentService") as MockService:
         MockService.return_value.create.return_value = _fake_document()
@@ -57,7 +80,11 @@ def test_create_document_returns_201(client):
 
 
 def test_update_not_found_returns_404(client):
-    """PUT /documents/{id} retourne 404 quand le document est introuvable."""
+    """PUT /documents/{id} retourne 404 quand le document est introuvable.
+
+    Args:
+        client: Client FastAPI fourni par la fixture de ce module.
+    """
     with patch.object(documents_router, "get_session", return_value=MagicMock()), \
          patch.object(documents_router, "DocumentService") as MockService:
         MockService.return_value.update.return_value = None
@@ -67,7 +94,11 @@ def test_update_not_found_returns_404(client):
 
 
 def test_delete_returns_204_when_found(client):
-    """DELETE /documents/{id} supprime le document et retourne 204."""
+    """DELETE /documents/{id} supprime le document et retourne 204.
+
+    Args:
+        client: Client FastAPI fourni par la fixture de ce module.
+    """
     with patch.object(documents_router, "get_session", return_value=MagicMock()), \
          patch.object(documents_router, "DocumentService") as MockService:
         MockService.return_value.delete.return_value = True
@@ -77,7 +108,11 @@ def test_delete_returns_204_when_found(client):
 
 
 def test_delete_returns_404_when_not_found(client):
-    """DELETE /documents/{id} retourne 404 quand le document est introuvable."""
+    """DELETE /documents/{id} retourne 404 quand le document est introuvable.
+
+    Args:
+        client: Client FastAPI fourni par la fixture de ce module.
+    """
     with patch.object(documents_router, "get_session", return_value=MagicMock()), \
          patch.object(documents_router, "DocumentService") as MockService:
         MockService.return_value.delete.return_value = False
@@ -87,7 +122,11 @@ def test_delete_returns_404_when_not_found(client):
 
 
 def test_ingest_single_success(client):
-    """POST /documents/ingest lance l'ingestion et retourne 200."""
+    """POST /documents/ingest lance l'ingestion et retourne 200.
+
+    Args:
+        client: Client FastAPI fourni par la fixture de ce module.
+    """
     with patch.object(documents_router, "IngestionService") as MockIngestion:
         response = client.post("/documents/ingest", json={"filepath": "doc.pdf"})
 
@@ -97,7 +136,11 @@ def test_ingest_single_success(client):
 
 
 def test_ingest_single_file_not_found_returns_404(client):
-    """POST /documents/ingest retourne 404 si le fichier n'existe pas."""
+    """POST /documents/ingest retourne 404 si le fichier n'existe pas.
+
+    Args:
+        client: Client FastAPI fourni par la fixture de ce module.
+    """
     with patch.object(documents_router, "IngestionService") as MockIngestion:
         MockIngestion.return_value.ingest_single.side_effect = FileNotFoundError
         response = client.post("/documents/ingest", json={"filepath": "missing.pdf"})
@@ -106,7 +149,11 @@ def test_ingest_single_file_not_found_returns_404(client):
 
 
 def test_ingest_all_schedules_background_task(client):
-    """POST /documents/ingest-all planifie l'ingestion en arrière-plan."""
+    """POST /documents/ingest-all planifie l'ingestion en arrière-plan.
+
+    Args:
+        client: Client FastAPI fourni par la fixture de ce module.
+    """
     with patch.object(documents_router, "IngestionService") as MockIngestion:
         response = client.post("/documents/ingest-all")
 
