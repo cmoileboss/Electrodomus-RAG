@@ -7,3 +7,4 @@ __pycache__
 front/node_modules
 evaluation/results/
 testpandas.py
+*.txt

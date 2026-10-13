@@ -4,6 +4,7 @@ from pathlib import Path
 from io import BytesIO
 from datetime import datetime
 import pandas as pd
+import re, calendar
 
 from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
 from docling.chunking import HybridChunker
@@ -29,6 +30,33 @@ from logger import get_logger
 
 logger = get_logger(__name__)
 
+MOIS = "janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre"
+PATTERNS = [
+    (rf"\b(\d{{1,2}})(?:er)?\s+({MOIS})\s+(\d{{4}})\b", "day"),
+    (rf"\b({MOIS})\s+(\d{{4}})\b", "month"),
+    (r"\b(?:édition|edition|version|rév\.?|rev\.?)\s*:?\s*(\d{4})\b", "year"),
+    (r"\b((?:19|20)\d{2})\b", "year"),   # dernier recours
+]
+MOIS_NUM = {
+    m: i for i, m in enumerate(
+        ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",
+         "août", "septembre", "octobre", "novembre", "décembre"], start=1)
+}
+MOIS_NUM.update({"fevrier": 2, "aout": 8, "decembre": 12})
+
+
+def extract_date(text: str) -> str | None:
+    """Retourne la première date trouvée (YYYY-MM-DD, YYYY-MM ou YYYY selon la précision), ou None."""
+    for pattern, precision in PATTERNS:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if not match:
+            continue
+        if precision == "day":
+            return f"{int(match.group(3)):04d}-{MOIS_NUM[match.group(2).lower()]:02d}-{int(match.group(1)):02d}"
+        if precision == "month":
+            return f"{int(match.group(2)):04d}-{MOIS_NUM[match.group(1).lower()]:02d}"
+        return match.group(1)
+    return None
 
 def replace_summary_with_h3(document: str) -> str:
     """Remplace les balises HTML <summary> par des balises <h3>."""
@@ -146,7 +174,6 @@ class DocManager:
 
         document = doc_repo.get_by_filepath(filepath)
         if not document:
-            #date = self._get_document_date(filepath)
             document = doc_repo.create(title=title, filepath=filepath)
             logger.info("Document créé : '%s' (%s)", title, filepath)
         else:
@@ -184,6 +211,14 @@ class DocManager:
         for i, (chunk, embedding_text, embedding) in enumerate(zip(chunks, embedding_texts, embeddings)):
             logger.debug("Chunk brut %d : %s", i, chunk)
             content = self._clean_chunk(chunk.text)
+            if not document.date:
+                document.date = extract_date(content)
+                if document.date:
+                    logger.info("Date du document '%s' : %s (chunk %d)", title, document.date, i)
+                else:
+                    logger.warning("Impossible d'extraire la date du document '%s' à partir du chunk %d", title, i)
+            else:
+                logger.debug("Date du document '%s' déjà définie : %s (chunk %d)", title, document.date, i)
             section = chunk.meta.headings[0] if chunk.meta.headings else None
             page = None
             if chunk.meta.doc_items:
@@ -282,7 +317,3 @@ class DocManager:
                     break
         logger.debug("%d code(s) d'erreur détecté(s) : %s", len(resultats), resultats)
         return resultats
-
-    #def _get_document_date(self, filepath: str) -> str:
-        # Implémentation pour extraire la date du document à partir du chemin de fichier
-        # Par exemple, on peut utiliser la date de création du fichier

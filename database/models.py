@@ -38,7 +38,7 @@ class Document(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(String, nullable=False, unique=True)
     filepath = Column(String, nullable=False, unique=True)
-    date = Column(DateTime)
+    date = Column(String, nullable=True)
 
     chunks = relationship("Chunk", back_populates="document", cascade="all, delete-orphan")
 
