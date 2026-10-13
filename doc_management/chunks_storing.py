@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 
 from database.database import get_session
 from database.document_repository import DocumentRepository
-from doc_management.doc_manager import DocManager
+from doc_management.doc_manager import DocManager, REFERENTIEL_TITLE, compute_file_hash
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -37,7 +37,7 @@ def build_doc_manager() -> DocManager:
 
 
 def process_single(filepath: str):
-    """Ingère un fichier unique en ouvrant sa session de base de données.
+    """Ingère un fichier unique, ou le met à jour s'il a changé depuis sa dernière ingestion.
 
     Args:
         filepath: Chemin du fichier source à traiter.
@@ -48,8 +48,8 @@ def process_single(filepath: str):
     logger.info("Traitement du fichier unique : %s", filepath)
     doc_manager = build_doc_manager()
     with get_session() as session:
-        doc_manager.process_document(doc_source=filepath, session=session)
-    logger.info("Traitement du fichier unique terminé : %s", filepath)
+        status = doc_manager.process_document(doc_source=filepath, session=session)
+    logger.info("Traitement du fichier unique terminé (%s) : %s", status, filepath)
 
 
 def _process_file(filepath: str, doc_manager: DocManager):
@@ -67,10 +67,12 @@ def _process_file(filepath: str, doc_manager: DocManager):
 
 
 def process_all():
-    """Découvre et ingère les nouveaux fichiers supportés en parallèle.
+    """Découvre les fichiers supportés et ingère ceux qui sont nouveaux ou modifiés.
 
-    Les fichiers dont le nom est déjà présent en base sont ignorés. Les erreurs
-    de tâches individuelles sont consignées sans interrompre les autres traitements.
+    Un fichier est ré-ingéré lorsque son empreinte diffère de celle enregistrée en base.
+    Le référentiel des codes d'erreur est traité en premier, pour que les modèles et codes
+    nouveaux existent avant l'analyse des autres documents. Les erreurs de tâches
+    individuelles sont consignées sans interrompre les autres traitements.
 
     Returns:
         None: Les résultats sont persistés par les tâches concurrentes.
@@ -84,31 +86,41 @@ def process_all():
         return
 
     with get_session() as session:
-        existing_filenames = {
-            Path(document.filepath).name
+        known_hashes = {
+            Path(document.filepath).name: document.content_hash
             for document in DocumentRepository(session).get_all()
         }
 
     files = [
         filepath for filepath in discovered_files
-        if Path(filepath).name not in existing_filenames
+        if known_hashes.get(Path(filepath).name) != compute_file_hash(filepath)
     ]
     skipped_count = len(discovered_files) - len(files)
     if skipped_count:
-        logger.info("%d document(s) déjà présent(s) en base ignoré(s).", skipped_count)
+        logger.info("%d document(s) inchangé(s) ignoré(s).", skipped_count)
     if not files:
-        logger.info("Tous les documents supportés sont déjà présents en base.")
+        logger.info("Tous les documents supportés sont à jour.")
         return
 
     doc_manager = build_doc_manager()
     logger.info("Ingestion de %d fichier(s) depuis %s", len(files), DOC_FOLDER)
-    max_workers = min(12, len(files))
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(_process_file, f, doc_manager): f for f in files}
-        for future in as_completed(futures):
-            filepath = futures[future]
-            try:
-                future.result()
-            except Exception as e:
-                logger.error("Erreur lors du traitement de %s : %s", filepath, e)
+
+    referentiel_files = [f for f in files if Path(f).stem.lower() == REFERENTIEL_TITLE]
+    other_files = [f for f in files if f not in referentiel_files]
+    for filepath in referentiel_files:
+        try:
+            _process_file(filepath, doc_manager)
+        except Exception as e:
+            logger.error("Erreur lors du traitement de %s : %s", filepath, e)
+
+    if other_files:
+        max_workers = min(12, len(other_files))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(_process_file, f, doc_manager): f for f in other_files}
+            for future in as_completed(futures):
+                filepath = futures[future]
+                try:
+                    future.result()
+                except Exception as e:
+                    logger.error("Erreur lors du traitement de %s : %s", filepath, e)
     logger.info("Ingestion globale termin\u00e9e (%d fichier(s) trait\u00e9s).", len(files))

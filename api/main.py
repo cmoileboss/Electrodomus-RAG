@@ -14,6 +14,7 @@ from database.database import init_db
 
 from api.routers import chat as chat_router
 from api.routers import chunks as chunks_router
+from api.routers import config as config_router
 from api.routers import documents as documents_router
 from api.routers import errors as errors_router
 from api.routers import models as models_router
@@ -55,6 +56,7 @@ app = FastAPI(title="Electrodomus RAG API", lifespan=lifespan)
 
 app.include_router(chat_router.router)
 app.include_router(chunks_router.router)
+app.include_router(config_router.router)
 app.include_router(documents_router.router)
 app.include_router(errors_router.router)
 app.include_router(models_router.router)

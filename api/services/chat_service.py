@@ -10,37 +10,29 @@ from uuid import uuid4
 
 from database.chunk_repository import ChunkRepository
 from database.database import get_session
+from database.document_repository import DocumentRepository
 from database.models import Chunk
 
+from prompts import STANDARD_PROMPT, ADVANCED_PROMPT
+
+from api.services.rag_config import (
+    CHUNK_LIMIT_RRF,
+    DEFAULT_MODEL as MODEL,
+    TOP_K_RERANKER,
+    RagConfig,
+)
 from logger import get_logger
 
 logger = get_logger(__name__)
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_URL = os.getenv("GROQ_URL", "https://api.groq.com/openai/v1/chat/completions")
-MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 PROMPT_LOG_DIR = Path("logs/prompts")
 RESPONSE_LOG_DIR = Path("logs/responses")
 
-CHUNK_LIMIT_RRF = int(os.getenv("CHUNK_LIMIT_RRF", "10"))
 CHUNK_LIMIT_CROSS_ENCODER = int(os.getenv("CHUNK_LIMIT_CROSS_ENCODER", "10"))
-TOP_K_RERANKER = int(os.getenv("TOP_K_RERANKER", "3"))
 
-SYSTEM_PROMPT = """\
-Tu es un assistant technique expert pour la marque Electrodomus, spécialisé dans le dépannage,
-l'installation et l'entretien des appareils électroménagers (fours, lave-linge, lave-vaisselle).
-
-Règles absolues :
-- Réponds UNIQUEMENT à partir des extraits de documentation fournis dans le CONTEXTE.
-- Si la réponse ne figure pas dans le contexte, réponds exactement :
-  "Je n'ai pas trouvé cette information dans la documentation Electrodomus."
-- Ne complète jamais avec tes connaissances générales.
-- Cite TOUJOURS la source (section / page) entre parenthèses après chaque information.
-- Si plusieurs extraits se contredisent, privilégie les informations les plus récentes.
-- Réponds en français, de façon claire, structurée et concise.
-- Utilise du Markdown standard : chaque ligne d'un tableau doit être sur sa propre ligne.
-- N'utilise pas de balises HTML (notamment <br>) ; dans un tableau, garde les cellules concises ou préfère une liste si le contenu est détaillé.
-"""
+SYSTEM_PROMPT = STANDARD_PROMPT
 
 
 def _write_prompt_to_file(messages: list[dict]) -> Path:
@@ -113,7 +105,7 @@ class ChatService:
 
     @staticmethod
     def _get_nearest_vectorized_chunks(
-        embedding, model_id: int | None = None, error_code: str | None = None
+        embedding, model_id: int | None = None, error_code: str | None = None, limit: int | None = None
     ) -> list[Chunk]:
         """Recherche les chunks les plus proches selon la distance cosinus.
 
@@ -121,16 +113,19 @@ class ChatService:
             embedding: Vecteur de la question, exposant la méthode ``tolist``.
             model_id: Identifiant facultatif du modèle d'appareil à filtrer.
             error_code: Code d'erreur facultatif à utiliser comme filtre.
+            limit: Nombre maximal de chunks; valeur par défaut du dépôt si absent.
 
         Returns:
             list[Chunk]: Chunks classés par proximité vectorielle.
         """
         with get_session() as session:
-            return ChunkRepository(session).get_nearest(embedding.tolist(), model_id=model_id, error_code=error_code)
+            return ChunkRepository(session).get_nearest(
+                embedding.tolist(), model_id=model_id, error_code=error_code, limit=limit
+            )
 
     @staticmethod
     def _get_nearest_bm25_chunks(
-        question: str, model_id: int | None = None, error_code: str | None = None
+        question: str, model_id: int | None = None, error_code: str | None = None, limit: int | None = None
     ) -> list[Chunk]:
         """Recherche des chunks par correspondance lexicale BM25.
 
@@ -138,20 +133,24 @@ class ChatService:
             question: Texte soumis à la recherche BM25.
             model_id: Identifiant facultatif du modèle d'appareil à filtrer.
             error_code: Code d'erreur facultatif à utiliser comme filtre.
+            limit: Nombre maximal de chunks; valeur par défaut du dépôt si absent.
 
         Returns:
             list[Chunk]: Chunks classés par pertinence lexicale.
         """
         with get_session() as session:
-            return ChunkRepository(session).search_bm25(question, model_id=model_id, error_code=error_code)
+            return ChunkRepository(session).search_bm25(
+                question, model_id=model_id, error_code=error_code, limit=limit
+            )
 
     @staticmethod
-    def _chat(messages: list[dict], stream: bool = True) -> str:
+    def _chat(messages: list[dict], stream: bool = True, model: str | None = None) -> str:
         """Envoie une conversation à Groq et rassemble le texte généré.
 
         Args:
             messages: Messages de conversation au format rôle/contenu de l'API.
             stream: Active la lecture et l'affichage progressifs des tokens si vrai.
+            model: Modèle Groq à utiliser; ``MODEL`` si absent.
 
         Returns:
             str: Réponse complète produite par le modèle.
@@ -161,13 +160,14 @@ class ChatService:
                 retourne une réponse HTTP en erreur.
             requests.RequestException: Si la requête HTTP échoue au niveau transport.
         """
+        model = model or MODEL
         if not GROQ_API_KEY:
             raise RuntimeError("GROQ_API_KEY n'est pas configurée.")
-        if not MODEL:
+        if not model:
             raise RuntimeError("GROQ_MODEL n'est pas configuré.")
 
         payload = {
-            "model": MODEL,
+            "model": model,
             "messages": messages,
             "stream": stream,
         }
@@ -176,7 +176,7 @@ class ChatService:
             "Content-Type": "application/json",
         }
 
-        logger.debug("Envoi de %d message(s) à Groq (modèle=%s, stream=%s)", len(messages), MODEL, stream)
+        logger.debug("Envoi de %d message(s) à Groq (modèle=%s, stream=%s)", len(messages), model, stream)
         response = requests.post(
             GROQ_URL,
             headers=headers,
@@ -228,8 +228,14 @@ class ChatService:
         if not chunks:
             context = "Aucun extrait pertinent trouvé."
         else:
+            # Ajout de la date du document
+            for c in chunks:
+                with get_session() as session:
+                    doc_repo = DocumentRepository(session)
+                    document = doc_repo.get_by_id(c.document_id) if c.document_id else None
+                    c.date = document.date if document else None
             context = "\n\n---\n\n".join(
-                f"[Source : chunk {c.id}, document {c.document_id or 'inconnu'}, {c.section or 'inconnue'}, page {c.page or 'inconnu'}, date : {c.date or 'inconnue'}]\n{c.content}"
+                f"[Source : chunk {c.id}, document {c.document_id or 'inconnu'}, {c.section or 'inconnue'}, page {c.page or 'inconnu'}, date {c.date or 'inconnue'}]\n{c.content}"
                 for c in chunks
             )
         return f"CONTEXTE :\n{context}\n\nQUESTION : {user_input}"
@@ -270,18 +276,22 @@ class ChatService:
         ]
 
     @staticmethod
-    def _reciprocal_rank_fusion(vectorial_list: list[Chunk], bm_list: list[Chunk], k: int = 60) -> list[Chunk]:
+    def _reciprocal_rank_fusion(
+        vectorial_list: list[Chunk], bm_list: list[Chunk], k: int = 60, limit: int | None = None
+    ) -> list[Chunk]:
         """Effectue la fusion par rang réciproque (RRF) de deux listes de résultats, dédoublonnée par id de chunk.
 
         Args:
             vectorial_list: Chunks ordonnés par proximité vectorielle.
             bm_list: Chunks ordonnés par pertinence BM25.
             k: Constante de décalage RRF qui réduit l'influence des rangs élevés.
+            limit: Nombre maximal de chunks conservés; ``CHUNK_LIMIT_RRF`` si absent.
 
         Returns:
             list[Chunk]: Chunks dédoublonnés par identifiant, triés par score RRF
-                décroissant et limités par ``CHUNK_LIMIT_RRF``.
+                décroissant et limités par ``limit``.
         """
+        limit = limit if limit is not None else CHUNK_LIMIT_RRF
         scores: dict[int, float] = {}
         chunks_by_id: dict[int, Chunk] = {}
 
@@ -294,7 +304,7 @@ class ChatService:
             scores[chunk.id] = scores.get(chunk.id, 0.0) + 1 / (k + rank + 1)
 
         ordered_ids = sorted(scores, key=scores.get, reverse=True)
-        return [chunks_by_id[chunk_id] for chunk_id in ordered_ids[:CHUNK_LIMIT_RRF]]
+        return [chunks_by_id[chunk_id] for chunk_id in ordered_ids[:limit]]
     
     async def ask(
         self,
@@ -302,6 +312,7 @@ class ChatService:
         history: list,
         model_id: int | None = None,
         error_code: str | None = None,
+        config: RagConfig | None = None,
     ) -> dict:
         """Exécute les recherches hybrides, reclasse les sources et génère une réponse.
 
@@ -310,27 +321,39 @@ class ChatService:
             history: Historique des messages antérieurs de la conversation.
             model_id: Identifiant facultatif du modèle d'appareil à filtrer.
             error_code: Code d'erreur facultatif à utiliser comme filtre de recherche.
+            config: Réglages du pipeline (modèle LLM et nombre de chunks à chaque étape);
+                valeurs par défaut du serveur si absent.
 
         Returns:
             dict: Résultat contenant ``answer`` (réponse générée) et ``sources``
                 (métadonnées des chunks retenus).
         """
-        logger.info("Requête /chat reçue : %s (model_id=%s, error_code=%s)", question, model_id, error_code)
+        config = config or RagConfig()
+        logger.info(
+            "Requête /chat reçue : %s (model_id=%s, error_code=%s, config=%s)",
+            question, model_id, error_code, config.model_dump(),
+        )
         embedding = await self._embed(question)
 
-        nearest_vectorized_chunks = self._get_nearest_vectorized_chunks(embedding, model_id=model_id, error_code=error_code)
+        nearest_vectorized_chunks = self._get_nearest_vectorized_chunks(
+            embedding, model_id=model_id, error_code=error_code, limit=config.vector_limit
+        )
         logger.debug("%d chunk(s) trouvé(s) pour la requête /chat : %s", len(nearest_vectorized_chunks), [c.id for c in nearest_vectorized_chunks])
 
-        nearest_bm25_chunks = self._get_nearest_bm25_chunks(question, model_id=model_id, error_code=error_code)
+        nearest_bm25_chunks = self._get_nearest_bm25_chunks(
+            question, model_id=model_id, error_code=error_code, limit=config.bm25_limit
+        )
         logger.debug("%d chunk(s) BM25 trouvé(s) pour la requête /chat : %s", len(nearest_bm25_chunks), [c.id for c in nearest_bm25_chunks])
 
-        nearest_rrf_chunks = self._reciprocal_rank_fusion(nearest_vectorized_chunks, nearest_bm25_chunks)
+        nearest_rrf_chunks = self._reciprocal_rank_fusion(
+            nearest_vectorized_chunks, nearest_bm25_chunks, limit=config.rrf_limit
+        )
         logger.debug("%d chunk(s) fusionné(s) pour la requête /chat : %s", len(nearest_rrf_chunks), [c.id for c in nearest_rrf_chunks])
 
         reranked_nearest_chunks = self.reranker.rerank(
             question,
             nearest_rrf_chunks,
-            top_k=TOP_K_RERANKER,
+            top_k=config.rerank_top_k,
         )
         logger.debug("%d chunk(s) reranké(s) pour la requête /chat : %s", len(reranked_nearest_chunks), [c.id for c in reranked_nearest_chunks])
 
@@ -339,7 +362,7 @@ class ChatService:
         prompt_path = _write_prompt_to_file(full_message)
         logger.debug("Prompt envoyé au LLM écrit dans %s", prompt_path)
         logger.debug("Prompt complet : %s", full_message)
-        answer = await asyncio.to_thread(self._chat, full_message, False)
+        answer = await asyncio.to_thread(self._chat, full_message, False, config.model)
         response_path = _write_response_to_file(answer)
         logger.debug("Réponse du LLM enregistrée dans %s", response_path)
         logger.info("Réponse /chat générée (%d caractères) : %s", len(answer), answer[:100] + "..." if len(answer) > 100 else answer)

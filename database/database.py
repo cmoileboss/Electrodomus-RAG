@@ -59,7 +59,7 @@ DEFAULT_MODELS = [
 
 
 def init_db():
-    """Crée les tables, l'index BM25 et ajoute les modèles par défaut manquants.
+    """Crée les tables, ajoute les colonnes manquantes, l'index BM25 et les modèles par défaut manquants.
 
     Returns:
         None: Les opérations sont effectuées dans la base configurée.
@@ -67,6 +67,8 @@ def init_db():
     Base.metadata.create_all(engine)
     logger.info("Tables créées avec succès.")
     with engine.connect() as conn:
+        # create_all n'ajoute pas les colonnes manquantes aux tables déjà existantes
+        conn.execute(text("ALTER TABLE documents ADD COLUMN IF NOT EXISTS content_hash VARCHAR"))
         conn.execute(text("""
             CREATE INDEX IF NOT EXISTS chunks_bm25_idx
             ON chunks

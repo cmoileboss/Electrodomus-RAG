@@ -1,5 +1,6 @@
 docling==2.120.3
 sentence-transformers==5.7.0
+torchvision
 sqlalchemy==2.0.50
 pgvector==0.5.0
 psycopg[binary]==3.3.4

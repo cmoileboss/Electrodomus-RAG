@@ -29,6 +29,48 @@
     background-color: white;
 }
 
+.chat-settings-toggle,
+.chat-settings-reset {
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 14px;
+    background-color: white;
+    cursor: pointer;
+}
+
+.chat-settings-toggle:hover,
+.chat-settings-reset:hover {
+    background-color: #f1f1f1;
+}
+
+.chat-settings {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+}
+
+.chat-settings-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: #444;
+}
+
+.chat-settings-number {
+    width: 90px;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
 .messages-container {
     flex: 1;
     overflow-y: auto;
@@ -81,6 +123,12 @@
     max-width: min(90%, 1100px);
 }
 
+.message.error {
+    background-color: #f8d7da;
+    color: #842029;
+    border: 1px solid #f5c2c7;
+}
+
 .message > :first-child {
     margin-top: 0;
 }
@@ -89,12 +137,18 @@
     margin-bottom: 0;
 }
 
-.message table {
-    display: block;
+.message .table-wrapper {
     width: 100%;
     max-width: 100%;
+    margin: 8px 0;
     overflow-x: auto;
+}
+
+.message table {
+    width: 100%;
     border-collapse: collapse;
+    font-size: 14px;
+    line-height: 1.4;
 }
 
 .message th,
@@ -103,21 +157,17 @@
     border: 1px solid #cbd2d9;
     text-align: left;
     vertical-align: top;
+    /* "anywhere" hérité de .message écraserait la largeur minimale des colonnes */
+    overflow-wrap: break-word;
+    word-break: normal;
 }
 
 .message th {
     background-color: #dce2e8;
-    white-space: nowrap;
 }
 
-.message th:first-child,
-.message td:first-child {
-    white-space: nowrap;
-}
-
-.message th:last-child,
-.message td:last-child {
-    white-space: nowrap;
+.message tbody tr:nth-child(even) {
+    background-color: rgba(255, 255, 255, 0.6);
 }
 
 .input-container {

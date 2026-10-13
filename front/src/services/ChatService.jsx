@@ -1,13 +1,42 @@
 const baseURL = '/api'
 
-export async function sendMessage(question, history = [], modelId = null, errorCode = null) {
+export async function sendMessage(question, history = [], modelId = null, errorCode = null, config = null) {
     const response = await fetch(`${baseURL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, history, model_id: modelId, error_code: errorCode })
+        body: JSON.stringify({ question, history, model_id: modelId, error_code: errorCode, config })
     });
+    if (!response.ok) throw new Error(await extractErrorMessage(response));
+    return response.json();
+}
+
+// Valeurs par défaut du serveur, modèles autorisés et borne maximale des nombres de chunks.
+export async function getRagConfig() {
+    const response = await fetch(`${baseURL}/config/`);
     if (!response.ok) throw new Error(`API error: ${response.status}`);
     return response.json();
+}
+
+// Extrait le message d'erreur renvoyé par l'API (champ "detail"), y compris le message imbriqué de Groq.
+async function extractErrorMessage(response) {
+    const fallback = `API error: ${response.status}`;
+    let detail;
+    try {
+        detail = (await response.json()).detail;
+    } catch {
+        return fallback;
+    }
+    if (typeof detail !== 'string' || !detail) return fallback;
+    const jsonStart = detail.indexOf('{');
+    if (jsonStart !== -1) {
+        try {
+            const nested = JSON.parse(detail.slice(jsonStart)).error?.message;
+            if (nested) return `${detail.slice(0, jsonStart).trim()} ${nested}`;
+        } catch {
+            // detail n'est pas du JSON : on l'affiche tel quel
+        }
+    }
+    return detail;
 }
 
 export async function getModels() {

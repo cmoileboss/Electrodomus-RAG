@@ -33,7 +33,8 @@ chunk_error_code = Table(
 class Document(Base):
     """Document source ingéré, repéré par un titre et un chemin uniques.
 
-    La relation ``chunks`` contient les segments extraits de ce document.
+    ``content_hash`` est l'empreinte SHA-256 du fichier au moment de l'ingestion; elle sert à
+    détecter les modifications. La relation ``chunks`` contient les segments extraits de ce document.
     """
 
     __tablename__ = "documents"
@@ -42,6 +43,7 @@ class Document(Base):
     title = Column(String, nullable=False, unique=True)
     filepath = Column(String, nullable=False, unique=True)
     date = Column(String, nullable=True)
+    content_hash = Column(String, nullable=True)
 
     chunks = relationship("Chunk", back_populates="document", cascade="all, delete-orphan")
 

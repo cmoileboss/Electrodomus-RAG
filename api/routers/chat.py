@@ -1,13 +1,16 @@
 """Endpoint /chat : reçoit une question et renvoie une réponse RAG avec ses sources."""
 
 import json as json_lib
+import logging
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from api.services.chat_service import ChatService
+from api.services.rag_config import RagConfig
 
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["chat"])
 
 
@@ -33,6 +36,8 @@ class ChatRequest(BaseModel):
             par le service de chat.
         model_id: Identifiant facultatif du modèle d'appareil à filtrer.
         error_code: Code d'erreur facultatif à utiliser comme filtre de recherche.
+        config: Réglages du pipeline RAG (modèle LLM, nombre de chunks à chaque étape);
+            valeurs par défaut du serveur pour les champs absents.
     """
 
     question: str
@@ -40,6 +45,7 @@ class ChatRequest(BaseModel):
     limit: int = 5
     model_id: int | None = None
     error_code: str | None = None
+    config: RagConfig | None = None
 
 
 class ChatResponse(BaseModel):
@@ -81,7 +87,19 @@ async def ask(body: ChatRequest, chat_service: ChatService = Depends(get_chat_se
     Returns:
         ChatResponse: Réponse générée, historique actualisé et sources citées.
     """
-    result = await chat_service.ask(body.question, body.history, model_id=body.model_id, error_code=body.error_code)
+    try:
+        result = await chat_service.ask(
+            body.question, body.history, model_id=body.model_id, error_code=body.error_code, config=body.config
+        )
+    except Exception as exc:
+        logger.exception("Erreur lors du traitement de /chat")
+        message = str(exc) or exc.__class__.__name__
+        if isinstance(exc, RuntimeError):
+            status_code = 429 if message.startswith("Groq 429") else 502
+        else:
+            status_code = 500
+            message = f"{exc.__class__.__name__}: {message}"
+        raise HTTPException(status_code=status_code, detail=message)
     updated_history = list(body.history) + [
         Message(role="user", content=body.question),
         Message(role="assistant", content=result["answer"]),

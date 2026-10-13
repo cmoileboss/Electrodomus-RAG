@@ -3,6 +3,9 @@
 from pathlib import Path
 from io import BytesIO
 from datetime import datetime
+import hashlib
+import threading
+from dataclasses import dataclass
 import pandas as pd
 import re, calendar
 
@@ -22,13 +25,55 @@ from database.document_repository import DocumentRepository
 from database.chunk_repository import ChunkRepository
 from database.error_repository import ErrorRepository
 from database.model_repository import ModelRepository
-from database.models import Chunk
+from database.models import Chunk, Document
 
 import re
 
 from logger import get_logger
 
 logger = get_logger(__name__)
+
+# Sérialise la création des modèles détectés pendant les ingestions concurrentes
+_model_creation_lock = threading.Lock()
+
+REFERENTIEL_TITLE = "referentiel_codes_erreur"
+# Nombre de lignes (titre, version, ligne vide) qui précèdent la ligne d'en-têtes du tableau du référentiel
+REFERENTIEL_HEADER_ROW = 3
+
+
+@dataclass
+class _ChunkEntry:
+    """Chunk prêt à être encodé et persisté, quelle que soit sa source (Docling ou ligne de tableau).
+
+    ``models`` et ``error_codes`` imposent les associations quand la source les connaît;
+    sinon elles sont détectées dans ``embedding_text``.
+    """
+
+    content: str
+    embedding_text: str
+    section: str | None
+    page: int | None
+    models: list[str] | None = None
+    error_codes: list[str] | None = None
+
+
+def compute_file_hash(filepath: str | Path) -> str:
+    """Calcule l'empreinte SHA-256 du contenu d'un fichier.
+
+    Args:
+        filepath: Chemin du fichier à lire.
+
+    Returns:
+        str: Empreinte hexadécimale du contenu du fichier.
+
+    Raises:
+        FileNotFoundError: Si le fichier n'existe pas.
+    """
+    digest = hashlib.sha256()
+    with open(filepath, "rb") as f:
+        for block in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 MOIS = "janvier|février|fevrier|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre|decembre"
 PATTERNS = [
@@ -146,28 +191,89 @@ class DocManager:
         return text.strip()
 
     @staticmethod
-    def _process_errors_file(session: Session):
-        """Importe le référentiel Excel et crée les associations code/modèle manquantes.
+    def _infer_model_type(name: str, model_repo: ModelRepository) -> str | None:
+        """Déduit le type d'un modèle à partir des modèles connus partageant son préfixe.
+
+        Args:
+            name: Référence du modèle, par exemple ``FR-900``.
+            model_repo: Dépôt fournissant les modèles connus.
+
+        Returns:
+            str | None: Type des modèles de même préfixe, ou ``None`` si le préfixe est inconnu.
+        """
+        prefix = name.split("-")[0]
+        for model in model_repo.get_all():
+            if model.name.split("-")[0] == prefix:
+                return model.type
+        return None
+
+    @classmethod
+    def _get_or_create_model(cls, model_repo: ModelRepository, name: str):
+        """Retourne le modèle demandé en le créant s'il est nouveau et que son type est déductible.
+
+        Args:
+            name: Référence du modèle recherché ou à créer.
+            model_repo: Dépôt de modèles utilisé pour la lecture et la création.
+
+        Returns:
+            Model | None: Modèle existant ou créé; ``None`` si le modèle est inconnu et son
+                type ne peut pas être déduit.
+        """
+        with _model_creation_lock:
+            model = model_repo.get_by_name(name)
+            if model:
+                return model
+            model_type = cls._infer_model_type(name, model_repo)
+            if not model_type:
+                return None
+            model = model_repo.create(name=name, type=model_type)
+        logger.info("Nouveau modèle ajouté en base : '%s' (%s)", name, model_type)
+        return model
+
+    def _register_new_models(self, texts: list[str], model_repo: ModelRepository) -> None:
+        """Ajoute en base les modèles absents dont la référence apparaît dans les textes.
+
+        Seules les références construites sur un préfixe déjà connu (par exemple ``FR-``) sont
+        retenues, afin d'en déduire le type de l'appareil.
+
+        Args:
+            texts: Textes des chunks à analyser.
+            model_repo: Dépôt de modèles utilisé pour la lecture et la création.
+
+        Returns:
+            None: Les nouveaux modèles sont validés en base.
+        """
+        prefixes = {model.name.split("-")[0] for model in model_repo.get_all()}
+        if not prefixes:
+            return
+        pattern = re.compile(rf"\b(?:{'|'.join(map(re.escape, sorted(prefixes)))})-\d{{3}}\b")
+        candidates = {match for text in texts for match in pattern.findall(text)}
+        for name in sorted(candidates):
+            self._get_or_create_model(model_repo, name)
+
+    @classmethod
+    def _process_errors_file(cls, session: Session, filepath: str):
+        """Importe le référentiel Excel : ajoute les modèles, codes et associations manquants.
+
+        Les codes déjà présents dont le contenu a changé sont mis à jour.
 
         Args:
             session: Session SQLAlchemy utilisée pour lire les modèles et enregistrer
                 les codes d'erreur importés.
+            filepath: Chemin du fichier Excel du référentiel.
 
         Returns:
-            None: Les associations nouvelles sont enregistrées dans la session.
+            None: Les modèles et associations nouveaux sont enregistrés dans la session.
         """
         logger.info("Lecture du référentiel des codes d'erreur.")
-        sheets = pd.read_excel(
-            r"C:\Users\guillaume.pedrona\Documents\Projets\Electrodomus-RAG\Documentation_Electrodomus\Referentiel_codes_erreur.xlsx",
-            sheet_name=None,
-            header=3
-        )
+        sheets = pd.read_excel(filepath, sheet_name=None, header=REFERENTIEL_HEADER_ROW)
         logger.debug("%d feuille(s) trouvée(s) dans le référentiel : %s", len(sheets), list(sheets.keys()))
 
         errors_repo = ErrorRepository(session)
         model_repo = ModelRepository(session)
 
         created_count = 0
+        updated_count = 0
         for sheet_name, df in sheets.items():
             logger.debug("Traitement de la feuille '%s' (%d ligne(s))", sheet_name, len(df))
             for index, row in df.iterrows():
@@ -181,13 +287,23 @@ class DocManager:
                 for model_name in models_list:
                     model_name = model_name.strip()
                     logger.debug("Processing model '%s' for error code '%s'", model_name, code)
-                    model = model_repo.get_by_name(model_name)
+                    model = cls._get_or_create_model(model_repo, model_name)
                     if not model:
                         logger.warning("Modèle '%s' introuvable, code d'erreur '%s' ignoré", model_name, code)
                         continue
                     error = errors_repo.get_by_code_and_model(code, model.id)
                     if error:
-                        logger.warning("Code d'erreur '%s' déjà associé au modèle '%s', ignoré", code, model_name)
+                        new_values = {
+                            "signification": signification,
+                            "client_behaviour": client_behaviour,
+                            "ass_intervention": ass_intervention,
+                        }
+                        changed = {k: v for k, v in new_values.items() if getattr(error, k) != v}
+                        for field, value in changed.items():
+                            setattr(error, field, value)
+                        if changed:
+                            updated_count += 1
+                            logger.info("Code d'erreur '%s' mis à jour pour le modèle '%s'", code, model_name)
                         continue
                     errors_repo.create(
                         signification=signification,
@@ -199,43 +315,21 @@ class DocManager:
                     created_count += 1
                 session.commit()
                 logger.info("Processed error code '%s' with models: %s", code, ", ".join(models_list))
-        logger.info("Référentiel des codes d'erreur traité : %d association(s) code/modèle créée(s).", created_count)
+        logger.info(
+            "Référentiel des codes d'erreur traité : %d association(s) code/modèle créée(s), %d mise(s) à jour.",
+            created_count, updated_count,
+        )
 
-    def process_document(self, doc_source: str, session: Session):
-        """Convertit un document, indexe ses chunks et les relie aux modèles et erreurs détectés.
-
-        Le document est créé s'il n'existe pas déjà. Un fichier portant le nom
-        ``referentiel_codes_erreur`` déclenche également l'import du référentiel Excel.
+    def _build_docling_entries(self, path: Path) -> list[_ChunkEntry]:
+        """Convertit un document avec Docling et le découpe en chunks contextualisés.
 
         Args:
-            doc_source: Chemin du fichier source pris en charge par le convertisseur.
-            session: Session SQLAlchemy utilisée pour créer le document et ses chunks.
+            path: Chemin du fichier source pris en charge par le convertisseur.
 
         Returns:
-            None: Le document et les chunks sont persistés dans la session fournie.
+            list[_ChunkEntry]: Chunks nettoyés, avec leur section et leur page.
         """
-        logger.info("Traitement du document demandé : %s", doc_source)
-        path = Path(doc_source)
-        filepath = str(path.resolve())
-        title = path.stem
-
-        doc_repo = DocumentRepository(session)
-        chunk_repo = ChunkRepository(session)
-        model_repo = ModelRepository(session)
-        error_repo = ErrorRepository(session)
-
-        document = doc_repo.get_by_filepath(filepath)
-        if not document:
-            document = doc_repo.create(title=title, filepath=filepath)
-            logger.info("Document créé : '%s' (%s)", title, filepath)
-        else:
-            logger.info("Document déjà existant : '%s'", title)
-            return
-
-        if title.lower() == "referentiel_codes_erreur":
-            self._process_errors_file(session)
-
-        logger.debug("Conversion du document : %s", doc_source)
+        logger.debug("Conversion du document : %s", path)
         if path.suffix.lower() in {".html", ".htm"}:
             html_document = replace_summary_with_h3(path.read_text(encoding="utf-8"))
             source = DocumentStream(
@@ -244,25 +338,143 @@ class DocManager:
             )
             doc = self.converter.convert(source=source).document
         else:
-            doc = self.converter.convert(source=doc_source).document
-        chunk_iter = self.chunker.chunk(dl_doc=doc)
-        chunks = list(chunk_iter)
+            doc = self.converter.convert(source=str(path)).document
+        chunks = list(self.chunker.chunk(dl_doc=doc))
 
-        embedding_texts = [
-            self._clean_chunk(self.chunker.contextualize(chunk=chunk))
-            for chunk in chunks
-        ]
-        logger.debug("Encodage de %d chunks pour '%s'", len(chunks), title)
+        entries = []
+        for chunk in chunks:
+            page = None
+            if chunk.meta.doc_items:
+                provs = chunk.meta.doc_items[0].prov
+                if provs:
+                    page = provs[0].page_no
+            entries.append(_ChunkEntry(
+                content=self._clean_chunk(chunk.text),
+                embedding_text=self._clean_chunk(self.chunker.contextualize(chunk=chunk)),
+                section=chunk.meta.headings[0] if chunk.meta.headings else None,
+                page=page,
+            ))
+        return entries
+
+    def _build_referentiel_entries(self, filepath: str) -> tuple[list[_ChunkEntry], str | None]:
+        """Découpe le référentiel des codes d'erreur en un chunk par ligne de tableau.
+
+        Chaque chunk reprend les en-têtes du tableau (``En-tête : valeur``). Le titre et la
+        version de la feuille précèdent le texte encodé, pour situer la ligne. Les modèles et le
+        code d'erreur de la ligne sont donnés explicitement plutôt que détectés dans le texte.
+
+        Args:
+            filepath: Chemin du fichier Excel du référentiel.
+
+        Returns:
+            tuple[list[_ChunkEntry], str | None]: Les chunks, et la date la plus récente trouvée dans
+                les lignes de version des feuilles (``None`` si aucune).
+        """
+        sheets = pd.read_excel(filepath, sheet_name=None, header=REFERENTIEL_HEADER_ROW)
+        intros = pd.read_excel(filepath, sheet_name=None, header=None, nrows=REFERENTIEL_HEADER_ROW)
+
+        entries = []
+        dates = []
+        for sheet_name, df in sheets.items():
+            intro_lines = [self._clean_chunk(str(value)) for value in intros[sheet_name].iloc[:, 0].dropna()]
+            sheet_date = extract_date("\n".join(intro_lines))
+            if sheet_date:
+                dates.append(sheet_date)
+            for _, row in df.iterrows():
+                if pd.isna(row.get("Code")):
+                    continue
+                content = "\n".join(
+                    f"{header} : {self._clean_chunk(str(value))}"
+                    for header, value in row.items()
+                    if pd.notna(value)
+                )
+                models = row.get("Modèles concernés")
+                entries.append(_ChunkEntry(
+                    content=content,
+                    embedding_text="\n".join([*intro_lines, content]),
+                    section=sheet_name,
+                    page=None,
+                    models=[m.strip() for m in str(models).split(",") if m.strip()] if pd.notna(models) else [],
+                    error_codes=[str(row["Code"]).strip()],
+                ))
+        logger.info("Référentiel : %d ligne(s) transformée(s) en chunks.", len(entries))
+        return entries, max(dates) if dates else None
+
+    def process_document(self, doc_source: str, session: Session) -> str:
+        """Convertit un document, indexe ses chunks et les relie aux modèles et erreurs détectés.
+
+        L'empreinte du fichier est comparée à celle enregistrée en base. Un document inchangé
+        est ignoré; un document modifié voit tous ses chunks remplacés et sa date recherchée de
+        nouveau, dans une seule transaction (l'ancienne version est conservée en cas d'échec).
+        Un fichier portant le nom ``referentiel_codes_erreur`` déclenche également l'import du
+        référentiel Excel, et est découpé en un chunk par ligne de tableau plutôt que par Docling.
+        Les modèles absents de la base mais cités dans le document y sont ajoutés.
+
+        Args:
+            doc_source: Chemin du fichier source pris en charge par le convertisseur.
+            session: Session SQLAlchemy utilisée pour créer le document et ses chunks.
+
+        Returns:
+            str: ``"created"``, ``"updated"`` ou ``"unchanged"`` selon le traitement effectué.
+
+        Raises:
+            FileNotFoundError: Si le fichier source n'existe pas.
+        """
+        logger.info("Traitement du document demandé : %s", doc_source)
+        path = Path(doc_source)
+        filepath = str(path.resolve())
+        title = path.stem
+        content_hash = compute_file_hash(path)
+
+        doc_repo = DocumentRepository(session)
+        chunk_repo = ChunkRepository(session)
+        model_repo = ModelRepository(session)
+        error_repo = ErrorRepository(session)
+
+        document = doc_repo.get_by_filepath(filepath) or doc_repo.get_by_title(title)
+        if document and document.content_hash == content_hash:
+            logger.info("Document inchangé, ignoré : '%s'", title)
+            return "unchanged"
+        if document:
+            logger.info("Document modifié, régénération des chunks : '%s'", title)
+
+        if title.lower() == REFERENTIEL_TITLE:
+            self._process_errors_file(session, filepath)
+            entries, referentiel_date = self._build_referentiel_entries(filepath)
+        else:
+            entries = self._build_docling_entries(path)
+            referentiel_date = None
+
+        logger.debug("Encodage de %d chunks pour '%s'", len(entries), title)
+        embedding_texts = [entry.embedding_text for entry in entries]
         embeddings = self.model.encode(
             embedding_texts,
             normalize_embeddings=True,
             batch_size=32,
         )
 
+        self._register_new_models(embedding_texts, model_repo)
+
+        # Tout ce qui suit est validé par un unique commit : en cas d'échec, l'ancienne version est conservée
+        if document:
+            status = "updated"
+            session.query(Chunk).filter_by(document_id=document.id).delete(synchronize_session=False)
+            document.filepath = filepath
+            document.date = None
+        else:
+            status = "created"
+            document = Document(title=title, filepath=filepath)
+            session.add(document)
+            session.flush()
+            logger.info("Document créé : '%s' (%s)", title, filepath)
+        document.content_hash = content_hash
+        if referentiel_date:
+            document.date = referentiel_date
+
         db_chunks = []
-        for i, (chunk, embedding_text, embedding) in enumerate(zip(chunks, embedding_texts, embeddings)):
-            logger.debug("Chunk brut %d : %s", i, chunk)
-            content = self._clean_chunk(chunk.text)
+        for i, (entry, embedding) in enumerate(zip(entries, embeddings)):
+            logger.debug("Chunk %d : %s", i, entry.content)
+            content = entry.content
             if not document.date:
                 document.date = extract_date(content)
                 if document.date:
@@ -271,18 +483,14 @@ class DocManager:
                     logger.warning("Impossible d'extraire la date du document '%s' à partir du chunk %d", title, i)
             else:
                 logger.debug("Date du document '%s' déjà définie : %s (chunk %d)", title, document.date, i)
-            section = chunk.meta.headings[0] if chunk.meta.headings else None
-            page = None
-            if chunk.meta.doc_items:
-                provs = chunk.meta.doc_items[0].prov
-                if provs:
-                    page = provs[0].page_no
+            section = entry.section
+            page = entry.page
 
             new_chunk = Chunk(
                 document_id=document.id,
                 chunk_index=i,
                 content=content,
-                embedding_text=embedding_text,
+                embedding_text=entry.embedding_text,
                 section=section,
                 page=page,
                 embedding=embedding.tolist(),
@@ -290,7 +498,10 @@ class DocManager:
             # Ajouté tout de suite pour éviter les avertissements d'autoflush sur les relations Model/ErrorCode
             session.add(new_chunk)
 
-            model_names = self._search_models_for_chunk(new_chunk.embedding_text, model_repo)
+            if entry.models is not None:
+                model_names = entry.models
+            else:
+                model_names = self._search_models_for_chunk(new_chunk.embedding_text, model_repo)
 
             matched_models = []
             seen_model_ids = set()
@@ -301,7 +512,10 @@ class DocManager:
                     matched_models.append(model)
                     seen_model_ids.add(model.id)
 
-            error_codes = self._search_errors_for_chunk(new_chunk.embedding_text, error_repo)
+            if entry.error_codes is not None:
+                error_codes = entry.error_codes
+            else:
+                error_codes = self._search_errors_for_chunk(new_chunk.embedding_text, error_repo)
             seen_codes = set()
             for code in error_codes:
                 # chunk_error_code n'a plus de model_id : un même code ne peut être lié qu'une fois par chunk
@@ -319,7 +533,8 @@ class DocManager:
 
         chunk_repo.bulk_create(db_chunks)
         session.commit()
-        logger.info("%d chunk(s) insérés pour le document '%s'.", len(db_chunks), title)
+        logger.info("%d chunk(s) insérés pour le document '%s' (%s).", len(db_chunks), title, status)
+        return status
 
     def _search_models_for_chunk(self, embedding_text: str, model_repo: ModelRepository) -> list[str]:
         """Repère les références de modèles connues dans le texte d'un chunk.

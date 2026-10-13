@@ -157,6 +157,7 @@ class ChunkRepository:
         embedding: list[float],
         model_id: int | None = None,
         error_code: str | None = None,
+        limit: int | None = None,
     ) -> list[Chunk]:
         """Recherche les chunks les plus proches du vecteur fourni.
 
@@ -164,10 +165,11 @@ class ChunkRepository:
             embedding: Vecteur de la requête, comparé par distance cosinus.
             model_id: Identifiant du modèle d'appareil servant de filtre, facultatif.
             error_code: Code d'erreur servant de filtre, facultatif.
+            limit: Nombre maximal de chunks; ``CHUNK_LIMIT_VECTORIAL`` si absent.
 
         Returns:
             list[Chunk]: Chunks correspondants, triés par distance croissante et limités
-                par ``CHUNK_LIMIT_VECTORIAL``.
+                par ``limit``.
         """
         query = self.session.query(Chunk).filter(Chunk.embedding.isnot(None))
         if model_id is not None:
@@ -177,7 +179,7 @@ class ChunkRepository:
         chunks = (
             query
             .order_by(Chunk.embedding.cosine_distance(embedding))
-            .limit(CHUNK_LIMIT_VECTORIAL)
+            .limit(limit if limit is not None else CHUNK_LIMIT_VECTORIAL)
             .all()
         )
         chunk_ids = { c.id for c in chunks }
@@ -189,6 +191,7 @@ class ChunkRepository:
         query: str,
         model_id: int | None = None,
         error_code: str | None = None,
+        limit: int | None = None,
     ) -> list[Chunk]:
         """Recherche les chunks par pertinence lexicale avec pg_textsearch.
 
@@ -196,13 +199,14 @@ class ChunkRepository:
             query: Texte recherché par l'index BM25 ``chunks_bm25_idx``.
             model_id: Identifiant du modèle d'appareil servant de filtre, facultatif.
             error_code: Code d'erreur servant de filtre, facultatif.
+            limit: Nombre maximal de chunks; ``CHUNK_LIMIT_BM25`` si absent.
 
         Returns:
             list[Chunk]: Chunks trouvés, ordonnés par score BM25 et limités par
-                ``CHUNK_LIMIT_BM25``.
+                ``limit``.
         """
         joins = []
-        params = {"query": query, "limit": CHUNK_LIMIT_BM25}
+        params = {"query": query, "limit": limit if limit is not None else CHUNK_LIMIT_BM25}
         if model_id is not None:
             joins.append("JOIN chunk_model cm ON cm.chunk_id = chunks.id AND cm.model_id = :model_id")
             params["model_id"] = model_id
