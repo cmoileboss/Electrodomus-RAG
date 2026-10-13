@@ -66,11 +66,15 @@ export default function ChatPage() {
     };
 
     const handleDeleteAllDocuments = () => {
-        if (!window.confirm("Supprimer tous les documents et tous leurs chunks ?")) return;
+        if (!window.confirm("Supprimer tous les fichiers du RAG (documents et chunks) ? Les fichiers sources du dossier de documentation ne sont pas supprimés.")) return;
         setDeletingAll(true);
+        setIngestMessage(null);
         deleteAllDocuments()
-            .then(() => refreshDocuments())
-            .catch((e) => setDocumentsError(e.message))
+            .then((res) => {
+                setIngestMessage({ ok: true, text: `${res.deleted} document(s) supprimé(s) du RAG.` });
+                if (showDocuments) refreshDocuments();
+            })
+            .catch((e) => setIngestMessage({ ok: false, text: e.message }))
             .finally(() => setDeletingAll(false));
     };
 
@@ -93,6 +97,13 @@ export default function ChatPage() {
                 <button className="ingest-button" onClick={handleToggleDocuments}>
                     {showDocuments ? "Masquer les fichiers" : "Voir les fichiers du RAG"}
                 </button>
+                <button
+                    className="ingest-button ingest-button-danger"
+                    onClick={handleDeleteAllDocuments}
+                    disabled={deletingAll || ingesting}
+                >
+                    {deletingAll ? "Suppression…" : "Supprimer tous les fichiers du RAG"}
+                </button>
                 {ingestMessage && (
                     <span className={`ingest-message ${ingestMessage.ok ? "ok" : "error"}`}>
                         {ingestMessage.text}
@@ -103,15 +114,6 @@ export default function ChatPage() {
                 <div className="documents-panel">
                     {chunksCount !== null && (
                         <span className="documents-chunks-count">Total de chunks : {chunksCount}</span>
-                    )}
-                    {documents.length > 0 && (
-                        <button
-                            className="documents-delete-all-button"
-                            onClick={handleDeleteAllDocuments}
-                            disabled={deletingAll}
-                        >
-                            {deletingAll ? "Suppression…" : "Supprimer tous les documents"}
-                        </button>
                     )}
                     {loadingDocuments && <span className="documents-status">Chargement…</span>}
                     {documentsError && <span className="documents-status error">{documentsError}</span>}

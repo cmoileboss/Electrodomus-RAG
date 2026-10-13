@@ -34,6 +34,18 @@
     cursor: not-allowed;
 }
 
+.ingest-button-danger {
+    background-color: #c62828;
+}
+
+.ingest-button-danger:hover {
+    background-color: #a01f1f;
+}
+
+.ingest-button-danger:disabled {
+    background-color: #aaa;
+}
+
 .ingest-message {
     font-size: 13px;
     padding: 4px 8px;
@@ -127,28 +139,6 @@
 }
 
 .documents-delete-button:disabled {
-    background-color: #aaa;
-    cursor: not-allowed;
-}
-
-.documents-delete-all-button {
-    display: block;
-    margin-bottom: 8px;
-    padding: 6px 12px;
-    background-color: #c62828;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 13px;
-    transition: background-color 0.2s;
-}
-
-.documents-delete-all-button:hover {
-    background-color: #a01f1f;
-}
-
-.documents-delete-all-button:disabled {
     background-color: #aaa;
     cursor: not-allowed;
 }
