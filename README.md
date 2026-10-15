@@ -50,7 +50,25 @@ Si le fichier `.env` n'existe pas encore, crée-le à partir du modèle :
 Copy-Item .env.example .env
 ```
 
-Dans `.env`, configure au minimum `CROSS_ENCODER_MODEL` (le modèle indiqué dans `.env.example` convient) et `GROQ_API_KEY` pour pouvoir générer des réponses avec le LLM. `HF_TOKEN` est facultatif avec les modèles publics par défaut. Ne partage pas et ne committe pas ce fichier : il peut contenir des clés secrètes.
+Ne partage pas et ne committe pas ce fichier : il peut contenir des clés secrètes.
+
+### Variables d'environnement
+
+L'application charge les variables depuis `.env` à la racine du projet. Les valeurs de ce fichier remplacent les valeurs par défaut du code ; `.env.example` fournit déjà des valeurs pour plusieurs paramètres.
+
+| Variable | Quand la renseigner | Rôle et valeur par défaut |
+| --- | --- | --- |
+| `CROSS_ENCODER_MODEL` | Obligatoire au démarrage de l'API | Modèle de reclassement des chunks. Utiliser `cross-encoder/ms-marco-MiniLM-L-6-v2`. |
+| `GROQ_API_KEY` | Obligatoire pour générer des réponses | Clé API Groq. |
+| `HF_TOKEN` | Jeton Hugging Face, nécessaire. |
+| `EMBED_MODEL_ID` | Facultative | Modèle d'embedding ; défaut : `BAAI/bge-m3`. Il doit être identique à l'ingestion et à la recherche. |
+| `MAX_TOKENS` | Facultative | Limite de tokens par chunk à l'ingestion ; défaut : `400`. |
+| `GROQ_MODEL` | Facultative | Modèle LLM utilisé ; défaut du code : `openai/gpt-oss-20b`. `.env.example` choisit `openai/gpt-oss-120b`. |
+| `GROQ_URL` | Facultative | URL de l'API Groq ; défaut : `https://api.groq.com/openai/v1/chat/completions`. |
+
+Les paramètres PostgreSQL sont facultatifs pour le lancement local avec Docker Compose : par défaut, l'API utilise `DATABASE_HOST=localhost`, `DATABASE_PORT=5433`, `DATABASE_NAME=electrodomus`, `DATABASE_USER=postgres` et `DATABASE_PASSWORD=postgres`. Tu peux les définir dans `.env` pour utiliser une autre base. `DRIVER_NAME` vaut par défaut `postgresql+psycopg`.
+
+Les limites de recherche peuvent aussi être ajustées : `CHUNK_LIMIT_VECTORIAL` et `CHUNK_LIMIT_BM25` (30 chacune par défaut), `CHUNK_LIMIT_RRF` (10) et `TOP_K_RERANKER` (3). Dans `.env.example`, elles sont respectivement définies à 100, 100, 100 et 20. `MISTRAL_API_KEY` n'est nécessaire que pour le script indépendant `mistral.py`, pas pour l'API FastAPI.
 
 ### 5. Lancer l'API
 
@@ -75,6 +93,7 @@ Dans un second terminal, depuis la racine du projet :
 
 ```bash
 cd front
+npm ci
 npm run dev
 ```
 
