@@ -121,6 +121,22 @@ def test_delete_returns_404_when_not_found(client):
     assert response.status_code == 404
 
 
+def test_delete_all_returns_count_and_is_not_shadowed_by_id_route(client):
+    """DELETE /documents/all supprime tous les documents et retourne leur nombre.
+
+    Args:
+        client: Client FastAPI fourni par la fixture de ce module.
+    """
+    with patch.object(documents_router, "get_session", return_value=MagicMock()), \
+         patch.object(documents_router, "DocumentService") as MockService:
+        MockService.return_value.delete_all.return_value = 3
+        response = client.delete("/documents/all")
+
+    assert response.status_code == 200
+    assert response.json() == {"success": True, "deleted": 3}
+    MockService.return_value.delete.assert_not_called()
+
+
 def test_ingest_single_success(client):
     """POST /documents/ingest lance l'ingestion et retourne 200.
 

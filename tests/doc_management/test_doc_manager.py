@@ -1,11 +1,14 @@
-"""Tests de la détection de changement et de la mise à jour des chunks dans DocManager."""
+﻿"""Tests de la détection de changement et de la mise à jour des chunks dans DocManager."""
 
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
+import pytest
 
+from database.models import Chunk, Model
 from doc_management import doc_manager as dm
 from doc_management.doc_manager import DocManager, compute_file_hash
 
@@ -147,3 +150,114 @@ def test_build_referentiel_entries_one_chunk_per_row_with_headers(tmp_path):
     assert first.error_codes == ["E01"]
     assert entries[2].section == "Gamme LV"
     assert date == "2026-09-15"
+
+
+@pytest.mark.parametrize("filename, expected", [
+    ("Gamme_FR_manuel.pdf", ["four encastrable"]),
+    ("Manuel_Gamme_LV.pdf", ["lave-vaisselle"]),
+    ("Gamme_WX.PDF", ["lave-linge"]),
+    ("gamme_wx_notice.pdf", ["lave-linge"]),
+    ("Gamme_FR.docx", []),
+    ("Gamme_FR.txt", []),
+    ("Manuel_FR-600.pdf", []),
+    ("Guide des fours encastrables.docx", ["four encastrable"]),
+    ("Entretien_four.txt", ["four encastrable"]),
+    ("FAQ_Lave-linge.html", ["lave-linge"]),
+    ("Notice_lave_vaisselle_2026.pdf", ["lave-vaisselle"]),
+    ("Guide lave linge et lave-vaisselle.pdf", ["lave-linge", "lave-vaisselle"]),
+    ("Gamme_FR_four.pdf", ["four encastrable"]),
+    ("Contrat_fournisseur.pdf", []),
+    ("PROC-FR-001_Nettoyage.pdf", ["four encastrable"]),
+    ("proc-lv_vidange.docx", ["lave-vaisselle"]),
+    ("PROC-WX_Entretien.txt", ["lave-linge"]),
+    ("PROC-WX-12.html", ["lave-linge"]),
+    ("Annexe_PROC-FR.pdf", []),
+    ("PROC-XX_divers.pdf", []),
+])
+def test_document_model_types_from_name(filename, expected):
+    """Les types d'appareils sont déduits d'un mot du titre (four, lave-linge, lave-vaisselle) ou d'un PDF Gamme_*."""
+    assert DocManager._document_model_types(Path(filename)) == expected
+
+
+def _ingest_new_document(tmp_path, filename):
+    """Ingère un nouveau document de deux chunks et retourne les noms de modèles liés à chaque chunk."""
+    f = tmp_path / filename
+    f.write_bytes(b"contenu")
+    manager = _manager()
+    chunks = []
+    for text in ["Premier chunk", "Second chunk mentionnant le LV-100"]:
+        chunk = MagicMock()
+        chunk.text = text
+        chunk.meta.headings = ["Titre"]
+        chunk.meta.doc_items = []
+        chunks.append(chunk)
+    manager.chunker.chunk.return_value = chunks
+    manager.chunker.contextualize.side_effect = lambda chunk: chunk.text
+    manager.model.encode.return_value = np.zeros((2, 3))
+
+    models = {
+        m.name: m for m in [
+            Model(id=1, name="FR-600", type="four encastrable"), Model(id=2, name="FR-650", type="four encastrable"),
+            Model(id=3, name="LV-100", type="lave-vaisselle"), Model(id=4, name="WX-300", type="lave-linge"),
+        ]
+    }
+    session = MagicMock()
+    with patch.object(dm, "DocumentRepository") as MockDocRepo, \
+         patch.object(dm, "ChunkRepository"), \
+         patch.object(dm, "ErrorRepository") as MockErrRepo, \
+         patch.object(dm, "ModelRepository") as MockModelRepo:
+        MockDocRepo.return_value.get_by_filepath.return_value = None
+        MockDocRepo.return_value.get_by_title.return_value = None
+        MockErrRepo.return_value.get_all_unique_codes.return_value = []
+        MockModelRepo.return_value.get_all.return_value = list(models.values())
+        MockModelRepo.return_value.get_by_name.side_effect = models.get
+        assert manager.process_document(str(f), session) == "created"
+
+    added = [call.args[0] for call in session.add.call_args_list if isinstance(call.args[0], Chunk)]
+    return [sorted(m.name for m in chunk.models) for chunk in added]
+
+
+def test_gamme_pdf_links_all_models_of_the_type_to_every_chunk(tmp_path):
+    """Un PDF Gamme_FR relie tous les fours à chaque chunk, en plus des modèles détectés dans le texte."""
+    linked = _ingest_new_document(tmp_path, "Gamme_FR_manuel.pdf")
+    assert linked == [["FR-600", "FR-650"], ["FR-600", "FR-650", "LV-100"]]
+
+
+def test_non_gamme_document_only_links_detected_models(tmp_path):
+    """Sans nom de gamme, seuls les modèles cités dans le texte sont reliés."""
+    linked = _ingest_new_document(tmp_path, "manuel.pdf")
+    assert linked == [[], ["LV-100"]]
+
+
+def test_title_with_lave_linge_links_all_washing_machines_to_every_chunk(tmp_path):
+    """Un titre contenant « lave-linge » relie tous les lave-linge à chaque chunk, quelle que soit l'extension."""
+    linked = _ingest_new_document(tmp_path, "FAQ_lave-linge.txt")
+    assert linked == [["WX-300"], ["LV-100", "WX-300"]]
+
+
+@pytest.mark.parametrize("title, model, expected", [
+    ("Manuel_FR-600", "FR-600", True),
+    ("Manuel_FR600_v2", "FR-600", True),
+    ("Notice fr 600", "FR-600", True),
+    ("Manuel_FR_600", "FR-600", True),
+    ("Manuel_FR-6000", "FR-600", False),
+    ("Manuel_FR-60", "FR-600", False),
+    ("Manuel_FR-650", "FR-600", False),
+    ("Manuel_AFR-600", "FR-600", False),
+    ("Gamme_FR", "FR-600", False),
+])
+def test_title_mentions_model(title, model, expected):
+    """Le titre doit contenir la référence complète du modèle, pas un préfixe ni un autre numéro."""
+    assert DocManager._title_mentions_model(title, model) is expected
+
+
+def test_model_in_file_name_is_linked_to_every_chunk(tmp_path):
+    """Un fichier dont le nom contient FR-600 relie uniquement ce modèle à chaque chunk."""
+    linked = _ingest_new_document(tmp_path, "Manuel_FR-600.pdf")
+    assert linked == [["FR-600"], ["FR-600", "LV-100"]]
+
+
+def test_proc_prefix_links_all_models_of_the_type_to_every_chunk(tmp_path):
+    """Un fichier PROC-LV... relie tous les lave-vaisselle à chaque chunk."""
+    linked = _ingest_new_document(tmp_path, "PROC-LV-004_Vidange.pdf")
+    assert linked == [["LV-100"], ["LV-100"]]

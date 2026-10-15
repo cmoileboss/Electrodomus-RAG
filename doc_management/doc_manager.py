@@ -40,6 +40,28 @@ REFERENTIEL_TITLE = "referentiel_codes_erreur"
 # Nombre de lignes (titre, version, ligne vide) qui précèdent la ligne d'en-têtes du tableau du référentiel
 REFERENTIEL_HEADER_ROW = 3
 
+# Un PDF dont le nom contient l'une de ces clés concerne tous les modèles du type associé
+GAMME_MODEL_TYPES = {
+    "gamme_fr": "four encastrable",
+    "gamme_lv": "lave-vaisselle",
+    "gamme_wx": "lave-linge",
+}
+
+# Un document dont le nom commence par l'un de ces préfixes concerne tous les modèles du type associé
+PREFIX_MODEL_TYPES = {
+    "proc-fr": "four encastrable",
+    "proc-lv": "lave-vaisselle",
+    "proc-wx": "lave-linge",
+}
+
+# Un document dont le titre contient l'un de ces mots (singulier ou pluriel, séparateurs
+# tiret, underscore ou espace) concerne tous les modèles du type associé
+TITLE_MODEL_PATTERNS = [
+    (re.compile(r"(?<![a-z0-9])fours?(?![a-z0-9])"), "four encastrable"),
+    (re.compile(r"(?<![a-z0-9])lave[-_ ]?linges?(?![a-z0-9])"), "lave-linge"),
+    (re.compile(r"(?<![a-z0-9])lave[-_ ]?vaisselles?(?![a-z0-9])"), "lave-vaisselle"),
+]
+
 
 @dataclass
 class _ChunkEntry:
@@ -320,6 +342,51 @@ class DocManager:
             created_count, updated_count,
         )
 
+    @staticmethod
+    def _document_model_types(path: Path) -> list[str]:
+        """Déduit les types d'appareils auxquels un document se rapporte d'après son nom.
+
+        Trois règles s'additionnent : le titre contient « four(s) », « lave-linge » ou
+        « lave-vaisselle »; le nom du fichier commence par ``PROC-FR``, ``PROC-LV`` ou ``PROC-WX``;
+        ou le fichier est un PDF dont le nom contient ``Gamme_FR``, ``Gamme_LV`` ou ``Gamme_WX``.
+        Les recherches ignorent la casse.
+
+        Args:
+            path: Chemin du fichier ingéré.
+
+        Returns:
+            list[str]: Types de modèles concernés, sans doublon; liste vide si aucun.
+        """
+        types = []
+        title = path.stem.lower()
+        for pattern, model_type in TITLE_MODEL_PATTERNS:
+            if pattern.search(title):
+                types.append(model_type)
+        types.extend(model_type for prefix, model_type in PREFIX_MODEL_TYPES.items() if title.startswith(prefix))
+        if path.suffix.lower() == ".pdf":
+            name = path.name.lower()
+            types.extend(model_type for key, model_type in GAMME_MODEL_TYPES.items() if key in name)
+        return list(dict.fromkeys(types))
+
+    @staticmethod
+    def _title_mentions_model(title: str, model_name: str) -> bool:
+        """Indique si le titre d'un document contient la référence d'un modèle précis.
+
+        La recherche ignore la casse et tolère un tiret, un underscore ou un espace (voire rien)
+        dans la référence : ``FR-600`` est reconnu dans ``Manuel_FR600`` ou ``Notice fr 600``,
+        mais pas dans ``FR-6000``.
+
+        Args:
+            title: Titre du document (nom du fichier sans extension).
+            model_name: Référence du modèle, par exemple ``FR-600``.
+
+        Returns:
+            bool: ``True`` si le titre contient la référence du modèle.
+        """
+        parts = [re.escape(part) for part in model_name.lower().split("-")]
+        pattern = r"(?<![a-z0-9])" + r"[\s_-]*".join(parts) + r"(?![a-z0-9])"
+        return re.search(pattern, title.lower()) is not None
+
     def _build_docling_entries(self, path: Path) -> list[_ChunkEntry]:
         """Convertit un document avec Docling et le découpe en chunks contextualisés.
 
@@ -408,7 +475,12 @@ class DocManager:
         nouveau, dans une seule transaction (l'ancienne version est conservée en cas d'échec).
         Un fichier portant le nom ``referentiel_codes_erreur`` déclenche également l'import du
         référentiel Excel, et est découpé en un chunk par ligne de tableau plutôt que par Docling.
-        Les modèles absents de la base mais cités dans le document y sont ajoutés.
+        Les modèles absents de la base mais cités dans le document y sont ajoutés. Si le titre
+        contient « four(s) », « lave-linge » ou « lave-vaisselle », si le nom du fichier commence par
+        ``PROC-FR``, ``PROC-LV`` ou ``PROC-WX``, ou si le nom d'un PDF contient
+        ``Gamme_FR``, ``Gamme_LV`` ou ``Gamme_WX``, tous les modèles du type correspondant
+        (four encastrable, lave-linge, lave-vaisselle) sont ajoutés à chaque chunk. Si le nom du
+        fichier contient la référence d'un modèle précis (ex. ``FR-600``), ce modèle est ajouté à chaque chunk.
 
         Args:
             doc_source: Chemin du fichier source pris en charge par le convertisseur.
@@ -454,6 +526,18 @@ class DocManager:
         )
 
         self._register_new_models(embedding_texts, model_repo)
+
+        forced_types = self._document_model_types(path)
+        forced_model_names = [
+            model.name
+            for model in model_repo.get_all()
+            if model.type in forced_types or self._title_mentions_model(title, model.name)
+        ]
+        if forced_model_names:
+            logger.info(
+                "Modèle(s) déduit(s) du nom de '%s' (types : %s) : %s. Ils seront ajoutés à chaque chunk.",
+                title, ", ".join(forced_types) or "aucun", ", ".join(forced_model_names),
+            )
 
         # Tout ce qui suit est validé par un unique commit : en cas d'échec, l'ancienne version est conservée
         if document:
@@ -502,7 +586,8 @@ class DocManager:
                 model_names = entry.models
             else:
                 model_names = self._search_models_for_chunk(new_chunk.embedding_text, model_repo)
-
+            # Les doublons éventuels sont ignorés par seen_model_ids ci-dessous
+            model_names = [*model_names, *forced_model_names]
             matched_models = []
             seen_model_ids = set()
             for model_name in model_names:
