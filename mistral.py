@@ -1,3 +1,5 @@
+"""Pipeline d'ingestion des documents Electrodomus via l'API Mistral (OCR, découpage et embeddings)."""
+
 import os
 import time
 from pathlib import Path
