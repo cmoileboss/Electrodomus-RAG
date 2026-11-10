@@ -43,7 +43,7 @@ services:
       DATABASE_NAME: electrodomus
       DATABASE_USER: postgres
       DATABASE_PASSWORD: postgres
-      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434/api/chat}
+      GROQ_URL: ${GROQ_URL:-https://api.groq.com/openai/v1/chat/completions}
 
     ports:
       - "8000:8000"
@@ -55,8 +55,9 @@ services:
     volumes:
       - .:/app
       - ./Documentation_Electrodomus:/app/Documentation_Electrodomus
+      - huggingface_cache:/root/.cache/huggingface
 
-    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
 
   front:
     build:
@@ -73,3 +74,4 @@ services:
 
 volumes:
   postgres_data:
+  huggingface_cache:

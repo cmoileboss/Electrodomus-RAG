@@ -1,15 +1,34 @@
-from pgvector.sqlalchemy import Vector
+"""Accès aux données pour l'entité Chunk : CRUD, recherche vectorielle et recherche BM25."""
+
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from database.models import Chunk
+from database.models import Chunk, ErrorCode, Model
 from logger import get_logger
+
+from dotenv import load_dotenv
+import os
+    
+load_dotenv()
+
+CHUNK_LIMIT_VECTORIAL = int(os.getenv("CHUNK_LIMIT_VECTORIAL", "30"))
+CHUNK_LIMIT_BM25 = int(os.getenv("CHUNK_LIMIT_BM25", "30"))
 
 logger = get_logger(__name__)
 
 
 class ChunkRepository:
+    """Opérations d'accès aux données pour l'entité Chunk."""
+
     def __init__(self, session: Session):
+        """Initialise le dépôt avec une session SQLAlchemy existante.
+
+        Args:
+            session: Session utilisée pour toutes les opérations de persistance.
+
+        Returns:
+            None: Le constructeur initialise le dépôt sans valeur de retour.
+        """
         self.session = session
 
     def create(
@@ -22,6 +41,20 @@ class ChunkRepository:
         page: int | None = None,
         embedding: list[float] | None = None,
     ) -> Chunk:
+        """Crée un chunk et le persiste immédiatement.
+
+        Args:
+            document_id: Identifiant du document parent.
+            chunk_index: Position du chunk dans le document.
+            content: Texte extrait du document.
+            embedding_text: Texte enrichi utilisé pour calculer l'embedding.
+            section: Titre de la section source, si disponible.
+            page: Numéro de page source, si disponible.
+            embedding: Vecteur calculé pour le texte, ou ``None`` s'il n'est pas fourni.
+
+        Returns:
+            Chunk: Chunk persisté et actualisé depuis la base de données.
+        """
         chunk = Chunk(
             document_id=document_id,
             chunk_index=chunk_index,
@@ -38,15 +71,39 @@ class ChunkRepository:
         return chunk
 
     def bulk_create(self, chunks: list[Chunk]) -> list[Chunk]:
+        """Persiste plusieurs chunks au sein d'une transaction.
+
+        Args:
+            chunks: Chunks à ajouter à la session.
+
+        Returns:
+            list[Chunk]: La même liste de chunks après validation de la transaction.
+        """
         self.session.add_all(chunks)
         self.session.commit()
         logger.debug("%d chunk(s) créés en masse", len(chunks))
         return chunks
 
     def get_by_id(self, chunk_id: int) -> Chunk | None:
+        """Recherche un chunk par son identifiant.
+
+        Args:
+            chunk_id: Identifiant du chunk recherché.
+
+        Returns:
+            Chunk | None: Chunk trouvé, ou ``None`` si l'identifiant n'existe pas.
+        """
         return self.session.get(Chunk, chunk_id)
 
     def get_by_document(self, document_id: int) -> list[Chunk]:
+        """Retourne les chunks d'un document dans l'ordre de leur index.
+
+        Args:
+            document_id: Identifiant du document parent.
+
+        Returns:
+            list[Chunk]: Chunks du document, éventuellement une liste vide.
+        """
         return (
             self.session.query(Chunk)
             .filter_by(document_id=document_id)
@@ -54,43 +111,132 @@ class ChunkRepository:
             .all()
         )
 
+    def get_by_chunk_index(self, chunk_index: int) -> list[Chunk]:
+        """Recherche les chunks ayant le même index, tous documents confondus.
+
+        Args:
+            chunk_index: Position recherchée, généralement zéro pour le premier chunk.
+
+        Returns:
+            list[Chunk]: Chunks possédant cet index, éventuellement une liste vide.
+        """
+        return self.session.query(Chunk).filter_by(chunk_index=chunk_index).all()
+
+    def link_error_code(self, chunk_id: int, error_code: str) -> None:
+        """Associe un code d'erreur à un chunk (insertion directe, silencieuse si déjà liée).
+
+        La relation Chunk.error_codes est viewonly : plusieurs ErrorCode partageant le même code
+        collapsent sur la même ligne de chunk_error_code, donc l'écriture passe par ici plutôt
+        que par la collection ORM.
+
+        Args:
+            chunk_id: Identifiant du chunk à associer.
+            error_code: Code d'erreur à enregistrer dans la table d'association.
+
+        Returns:
+            None: La relation est insérée directement dans la session.
+        """
+        self.session.execute(
+            text(
+                "INSERT INTO chunk_error_code (chunk_id, error_code) "
+                "VALUES (:chunk_id, :error_code) ON CONFLICT DO NOTHING"
+            ),
+            {"chunk_id": chunk_id, "error_code": error_code},
+        )
+
     def count(self) -> int:
+        """Compte les chunks enregistrés.
+
+        Returns:
+            int: Nombre total de chunks présents en base.
+        """
         return self.session.query(Chunk).count()
 
-    def get_nearest(self, embedding: list[float], limit: int = 5) -> list[Chunk]:
-        """Recherche les chunks les plus proches par similarité cosinus."""
+    def get_nearest(
+        self,
+        embedding: list[float],
+        model_id: int | None = None,
+        error_code: str | None = None,
+        limit: int | None = None,
+    ) -> list[Chunk]:
+        """Recherche les chunks les plus proches du vecteur fourni.
+
+        Args:
+            embedding: Vecteur de la requête, comparé par distance cosinus.
+            model_id: Identifiant du modèle d'appareil servant de filtre, facultatif.
+            error_code: Code d'erreur servant de filtre, facultatif.
+            limit: Nombre maximal de chunks; ``CHUNK_LIMIT_VECTORIAL`` si absent.
+
+        Returns:
+            list[Chunk]: Chunks correspondants, triés par distance croissante et limités
+                par ``limit``.
+        """
+        query = self.session.query(Chunk).filter(Chunk.embedding.isnot(None))
+        if model_id is not None:
+            query = query.join(Chunk.models).filter(Model.id == model_id)
+        if error_code is not None:
+            query = query.join(Chunk.error_codes).filter(ErrorCode.code == error_code)
         chunks = (
-            self.session.query(Chunk)
-            .filter(Chunk.embedding.isnot(None))
+            query
             .order_by(Chunk.embedding.cosine_distance(embedding))
-            .limit(limit)
+            .limit(limit if limit is not None else CHUNK_LIMIT_VECTORIAL)
             .all()
         )
-        logger.debug("%d chunk(s) trouvés par similarité cosinus (limit=%d)", len(chunks), limit)
+        chunk_ids = { c.id for c in chunks }
+        logger.debug("%d chunk(s) trouvés par similarité cosinus : %s", len(chunks), chunk_ids)
         return chunks
 
-    def search_bm25(self, query: str, limit: int = 5) -> list[tuple[Chunk, float]]:
-        """Recherche BM25 via pg_search, retourne (chunk, score)."""
-        rows = self.session.execute(
-            text("""
-                SELECT id, paradedb.score(id) AS score
-                FROM chunks
-                WHERE chunks @@@ paradedb.parse(:query)
-                ORDER BY score DESC
-                LIMIT :limit
-            """),
-            {"query": f"content:{query} OR embedding_text:{query}", "limit": limit},
-        ).fetchall()
+    def search_bm25(
+        self,
+        query: str,
+        model_id: int | None = None,
+        error_code: str | None = None,
+        limit: int | None = None,
+    ) -> list[Chunk]:
+        """Recherche les chunks par pertinence lexicale avec pg_textsearch.
+
+        Args:
+            query: Texte recherché par l'index BM25 ``chunks_bm25_idx``.
+            model_id: Identifiant du modèle d'appareil servant de filtre, facultatif.
+            error_code: Code d'erreur servant de filtre, facultatif.
+            limit: Nombre maximal de chunks; ``CHUNK_LIMIT_BM25`` si absent.
+
+        Returns:
+            list[Chunk]: Chunks trouvés, ordonnés par score BM25 et limités par
+                ``limit``.
+        """
+        joins = []
+        params = {"query": query, "limit": limit if limit is not None else CHUNK_LIMIT_BM25}
+        if model_id is not None:
+            joins.append("JOIN chunk_model cm ON cm.chunk_id = chunks.id AND cm.model_id = :model_id")
+            params["model_id"] = model_id
+        if error_code is not None:
+            joins.append("JOIN chunk_error_code cec ON cec.chunk_id = chunks.id AND cec.error_code = :error_code")
+            params["error_code"] = error_code
+        sql = (
+            "SELECT chunks.id, chunks.content <@> to_bm25query(:query, 'chunks_bm25_idx') AS score "
+            "FROM chunks " + " ".join(joins) + " ORDER BY score LIMIT :limit"
+        )
+        rows = self.session.execute(text(sql), params).fetchall()
         if not rows:
             logger.debug("Aucun résultat BM25 pour la requête : %s", query)
             return []
         id_score = {row.id: row.score for row in rows}
         chunks = self.session.query(Chunk).filter(Chunk.id.in_(id_score)).all()
-        chunks.sort(key=lambda c: id_score[c.id], reverse=True)
-        logger.debug("%d chunk(s) trouvés par BM25 pour la requête : %s", len(chunks), query)
-        return [(c, id_score[c.id]) for c in chunks]
+        # pg_textsearch renvoie des scores négatifs : le plus proche de 0 est le meilleur
+        chunks.sort(key=lambda c: id_score[c.id])
+        logger.debug("%d chunk(s) trouvés par BM25 pour la requête : %s", len(chunks), id_score.items())
+        return chunks
 
     def delete(self, chunk_id: int) -> bool:
+        """Supprime un chunk identifié.
+
+        Args:
+            chunk_id: Identifiant du chunk à supprimer.
+
+        Returns:
+            bool: ``True`` si le chunk existait et a été supprimé, sinon ``False``.
+        """
         chunk = self.get_by_id(chunk_id)
         if not chunk:
             logger.debug("Chunk %d introuvable pour suppression", chunk_id)
@@ -101,6 +247,14 @@ class ChunkRepository:
         return True
 
     def delete_by_document(self, document_id: int) -> int:
+        """Supprime tous les chunks appartenant à un document.
+
+        Args:
+            document_id: Identifiant du document dont les chunks sont supprimés.
+
+        Returns:
+            int: Nombre de chunks supprimés.
+        """
         deleted = (
             self.session.query(Chunk).filter_by(document_id=document_id).delete()
         )

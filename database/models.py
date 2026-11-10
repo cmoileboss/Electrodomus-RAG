@@ -1,3 +1,5 @@
+"""Modèles SQLAlchemy : Document, Chunk et Model, ainsi que leur association many-to-many."""
+
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
@@ -6,6 +8,7 @@ from sqlalchemy.orm import DeclarativeBase, relationship
 
 
 class Base(DeclarativeBase):
+    """Base déclarative SQLAlchemy qui porte les métadonnées des tables."""
     pass
 
 
@@ -13,27 +16,49 @@ class Base(DeclarativeBase):
 chunk_model = Table(
     "chunk_model",
     Base.metadata,
-    Column("chunk_id", Integer, ForeignKey("chunks.id"), primary_key=True),
-    Column("model_id", Integer, ForeignKey("models.id"), primary_key=True),
+    Column("chunk_id", Integer, ForeignKey("chunks.id", ondelete="CASCADE"), primary_key=True),
+    Column("model_id", Integer, ForeignKey("models.id", ondelete="CASCADE"), primary_key=True),
 )
 
+# Table d'association many-to-many entre chunks et error_codes.
+# error_code n'a pas de contrainte FK : le code seul n'est pas unique dans error_codes
+# (clé composite code+model_id), la jointure est donc définie explicitement sur les relations.
+chunk_error_code = Table(
+    "chunk_error_code",
+    Base.metadata,
+    Column("chunk_id", Integer, ForeignKey("chunks.id", ondelete="CASCADE"), primary_key=True),
+    Column("error_code", String, primary_key=True),
+)
 
 class Document(Base):
+    """Document source ingéré, repéré par un titre et un chemin uniques.
+
+    ``content_hash`` est l'empreinte SHA-256 du fichier au moment de l'ingestion; elle sert à
+    détecter les modifications. La relation ``chunks`` contient les segments extraits de ce document.
+    """
+
     __tablename__ = "documents"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(String, nullable=False, unique=True)
     filepath = Column(String, nullable=False, unique=True)
-    date = Column(DateTime)
+    date = Column(String, nullable=True)
+    content_hash = Column(String, nullable=True)
 
-    chunks = relationship("Chunk", back_populates="document")
+    chunks = relationship("Chunk", back_populates="document", cascade="all, delete-orphan")
 
 
 class Chunk(Base):
+    """Segment de document utilisé pour la recherche et la génération RAG.
+
+    ``content`` conserve le texte source, ``embedding_text`` le texte contextualisé
+    encodé, et ``embedding`` le vecteur de recherche associé.
+    """
+
     __tablename__ = "chunks"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    document_id = Column(Integer, ForeignKey("documents.id"), nullable=False)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     chunk_index = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)
     embedding_text = Column(Text, nullable=False)
@@ -45,8 +70,19 @@ class Chunk(Base):
     document = relationship("Document", back_populates="chunks")
     models = relationship("Model", secondary=chunk_model, back_populates="chunks")
 
+    error_codes = relationship(
+        "ErrorCode",
+        secondary=chunk_error_code,
+        primaryjoin="Chunk.id == chunk_error_code.c.chunk_id",
+        secondaryjoin="chunk_error_code.c.error_code == ErrorCode.code",
+        back_populates="chunks",
+        viewonly=True,
+    )
+
 
 class Model(Base):
+    """Modèle d'appareil Electrodomus associé aux chunks et codes d'erreur concernés."""
+
     __tablename__ = "models"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -54,3 +90,28 @@ class Model(Base):
     type = Column(String, nullable=False)
 
     chunks = relationship("Chunk", secondary=chunk_model, back_populates="models")
+    error_codes = relationship("ErrorCode", back_populates="model", cascade="all, delete-orphan")
+
+class ErrorCode(Base):
+    """Code d'erreur propre à un modèle et instructions associées.
+
+    La clé primaire est composée de ``code`` et ``model_id``.
+    """
+
+    __tablename__ = "error_codes"
+
+    code = Column(String, primary_key=True)
+    model_id = Column(Integer, ForeignKey("models.id", ondelete="CASCADE"), primary_key=True)
+    signification = Column(String, nullable=False)
+    client_behaviour = Column(String, nullable=False)
+    ass_intervention = Column(String, nullable=False)
+
+    model = relationship("Model", back_populates="error_codes")
+    chunks = relationship(
+        "Chunk",
+        secondary=chunk_error_code,
+        primaryjoin="ErrorCode.code == chunk_error_code.c.error_code",
+        secondaryjoin="chunk_error_code.c.chunk_id == Chunk.id",
+        back_populates="error_codes",
+        viewonly=True,
+    )
